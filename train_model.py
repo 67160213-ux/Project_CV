@@ -118,10 +118,10 @@ def build_dataset_from_images(image_paths):
                 label = expected[c]
 
                 if label == BLANK_CHAR:
-                    # ช่องว่าง: บันทึกทั้งแบบว่างสนิทและแบบมีเงาขอบตาราง (ขนาด 1,176 มิติ)
-                    if feat is None:
-                        feat = np.zeros(FEATURE_DIM, dtype=np.float32)
-                    X.append(feat)
+                    # ช่องว่าง: บันทึกเฉพาะภาพที่ว่างเปล่าจริง (Zero vector) เท่านั้น
+                    # ป้องกันไม่ให้เศษเส้นขอบตารางแนวตั้งเข้ามาปนเปื้อนจนโมเดลสับสนกับตัว 'I'
+                    feat_blank = np.zeros(FEATURE_DIM, dtype=np.float32)
+                    X.append(feat_blank)
                     y.append(BLANK_CHAR)
                 else:
                     # ตัวอักษร: นำไปทำ Advanced Augmentation + Centroid Alignment + HOG Features

@@ -22,4 +22,5 @@ outputs/visuals/*debug*.jpg
 outputs/visuals/cell_*.jpg
 outputs/visuals/debug_*.jpg
 outputs/*.png
+models/*backup*
 

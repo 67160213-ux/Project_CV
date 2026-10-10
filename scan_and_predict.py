@@ -110,7 +110,7 @@ def compute_hog_28(img_28):
     hist = hist / np.sqrt(np.sum(hist**2) + 1e-6)
     return hist.flatten()
 
-def extract_character_features(cell_bgr, return_crop=False):
+def extract_character_features(cell_bgr, return_crop=False, return_meta=False):
     """
     Isolates character inside cell, centers via Centroid Alignment,
     and returns combined (Raw Pixels 784 + HOG 392 = 1,176 features).
@@ -127,6 +127,8 @@ def extract_character_features(cell_bgr, return_crop=False):
     pixel_diff = int(np.max(gray)) - int(np.min(gray))
     pixel_std = float(np.std(gray))
     if pixel_std < 7.0 or pixel_diff < 35:
+        if return_meta:
+            return (None, None, None)
         return (None, None) if return_crop else None
         
     blurred = cv2.GaussianBlur(gray, (3, 3), 0)
@@ -168,6 +170,8 @@ def extract_character_features(cell_bgr, return_crop=False):
             candidates.append((lbl, bx, by, bw, bh, area))
             
     if not candidates:
+        if return_meta:
+            return (None, None, None)
         return (None, None) if return_crop else None
         
     # 4. Multi-Component Intelligent Stroke Merging:
@@ -192,6 +196,8 @@ def extract_character_features(cell_bgr, return_crop=False):
     char_mask = np.isin(labels, merged_lbls).astype(np.uint8) * 255
     pts = np.argwhere(char_mask > 0)
     if len(pts) == 0:
+        if return_meta:
+            return (None, None, None)
         return (None, None) if return_crop else None
         
     y0, x0 = pts.min(axis=0)
@@ -220,6 +226,12 @@ def extract_character_features(cell_bgr, return_crop=False):
     
     # Combined feature vector (1,176 features)
     feat = np.hstack([pix_feat, hog_feat]).astype(np.float32)
+    stroke_meta = {
+        "x0": int(x0), "x1": int(x1), "y0": int(y0), "y1": int(y1),
+        "bw": int(bw), "bh": int(bh), "cw": int(cw), "ch": int(ch)
+    }
+    if return_meta:
+        return (feat, char_crop, stroke_meta)
     return (feat, char_crop) if return_crop else feat
 
 def detect_table_rows(warped):
@@ -314,7 +326,7 @@ def scan_sheet(image_path, save_annotated=True):
             pad_x = 5
             cell_roi = warped[y_top + pad_y : y_bot - pad_y, x1 + pad_x : x2 - pad_x]
             
-            feat, char_crop = extract_character_features(cell_roi, return_crop=True)
+            feat, char_crop, stroke_meta = extract_character_features(cell_roi, return_crop=True, return_meta=True)
             
             if feat is not None:
                 pred_label = clf.predict([feat])[0]
@@ -354,6 +366,22 @@ def scan_sheet(image_path, save_annotated=True):
                         if right_h >= 0.50 * bh_c and prob_o > 0.05:
                             pred_label = "O"
                             confidence = max(prob_o, 0.85)
+
+                # 4. Topological Guard for 'I':
+                # Tall thin vertical stroke centered in the cell (not touching cell borders)
+                if char_crop is not None and stroke_meta is not None:
+                    s_x0 = stroke_meta["x0"]
+                    s_x1 = stroke_meta["x1"]
+                    s_bw = stroke_meta["bw"]
+                    s_bh = stroke_meta["bh"]
+                    s_cw = stroke_meta["cw"]
+                    s_aspect = s_bh / max(s_bw, 1)
+                    stroke_cx = (s_x0 + s_x1) / 2.0
+                    cell_cx = s_cw / 2.0
+                    is_centered = (abs(stroke_cx - cell_cx) <= 8.5 and s_x0 >= 7 and s_x1 <= s_cw - 7)
+                    if is_centered and s_bh >= 25 and s_aspect >= 4.5:
+                        pred_label = "I"
+                        confidence = max(confidence, 0.95)
             else:
                 pred_label = "-"
                 confidence = 1.0

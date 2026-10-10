@@ -2,31 +2,40 @@
 ### ระบบตรวจและอ่านกระดาษคำตอบอัจฉริยะด้วย Computer Vision และ Machine Learning (20 แถว × 20 ช่อง)
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
-[![OpenCV](https://img.shields.io/badge/OpenCV-5.0%2B-green.svg)](https://opencv.org/)
+[![OpenCV](https://img.shields.io/badge/OpenCV-4.10%2B-green.svg)](https://opencv.org/)
 [![Scikit--Learn](https://img.shields.io/badge/Scikit--Learn-1.3%2B-orange.svg)](https://scikit-learn.org/)
-[![Accuracy](https://img.shields.io/badge/Accuracy-94.00%25-brightgreen.svg)]()
+[![Accuracy](https://img.shields.io/badge/Overall%20Accuracy-87.08%25-brightgreen.svg)]()
+[![Best Sheet](https://img.shields.io/badge/Best%20Accuracy-94.00%25-success.svg)]()
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)]()
 
 ---
 
 ## 📌 บทนำ (Introduction)
 
-**Project_CV** เป็นระบบประมวลผลภาพ (Computer Vision) และโครงข่ายประสาทเทียม (Deep Learning / MLP) สำหรับตรวจจับ แปลงระนาบ และอ่านตัวอักษรภาษาอังกฤษเขียนมือ (**Handwritten English A–Z**) รวมถึงตรวจจับช่องว่าง (**Empty Space `-`**) จากภาพถ่ายกระดาษคำตอบขนาด **20 แถว × 20 คอลัมน์ (400 ช่องต่อแผ่น)** ได้อย่างรวดเร็วและแม่นยำสูง
+**Project_CV** เป็นระบบประมวลผลภาพ (Computer Vision) และโครงข่ายประสาทเทียม (Deep Learning / Multi-Layer Perceptron) สำหรับตรวจจับ แปลงระนาบ และอ่านตัวอักษรภาษาอังกฤษเขียนมือ (**Handwritten English A–Z**) รวมถึงตรวจจับช่องว่าง (**Empty Space `-`**) จากภาพถ่ายกระดาษคำตอบขนาด **20 แถว × 20 คอลัมน์ (400 ช่องต่อแผ่น)** ได้อย่างรวดเร็วและแม่นยำสูง
 
-ระบบได้รับการออกแบบให้รองรับภาพถ่ายจากกล้องสมาร์ตโฟนทั่วไปที่มีมุมกล้องเอียง แสงเงาไม่สม่ำเสมอ และความผิดเพี้ยนของเลนส์ พร้อมระบบสร้างรายงานผลลัพธ์ในรูปแบบ **Executive Excel Dashboard** และภาพหลักฐานตีกรอบสีเขียว/แดง (Visual Bounding Boxes) อัตโนมัติ
+ระบบได้รับการออกแบบให้รองรับภาพถ่ายจากกล้องสมาร์ตโฟนทั่วไปที่มีมุมมองเอียง แสงเงาไม่สม่ำเสมอ และความหลากหลายของลายมือมนุษย์ (ทั้งปากกาหมึกซึม ปากกาลูกลื่น และดินสอเส้นบาง) พร้อมระบบสร้างรายงานผลลัพธ์ในรูปแบบ **Executive Excel Dashboard** และภาพหลักฐานตีกรอบสีเขียว/แดง (Visual Bounding Boxes) อัตโนมัติ
 
 ---
 
 ## ✨ คุณสมบัติเด่น (Key Features)
 
-* **Robust Perspective Alignment:** ตรวจจับกรอบตาราง 20×20 และดึงภาพให้ตรงด้วย *Directional Vertical Dilation* ขจัดปัญหาตารางเบี้ยวจากการเชื่อมติดแถบมาร์กเกอร์สีดำ
-* **Dynamic Row Profiling:** คำนวณพิกัดความสูงของแถวข้อสอบทั้ง 20 แถวด้วย *Horizontal Projection Profile* แม่นยำทุกข้อโดยไม่มีปัญหาแถวเลื่อนสะสม
-* **Smart Grid Border Filter:** ตัวกรอง Aspect Ratio อัจฉริยะ ป้องกันเศษเส้นตารางแนวตั้ง/แนวนอนจากการถูกอ่านผิดเป็นตัวอักษร U, L, A
-* **Centroid Alignment (Image Moments):** จัดกึ่งกลางมวลหมึกลายมือ $(cx, cy) \rightarrow (14, 14)$ ตามมาตรฐาน MNIST/EMNIST
-* **1,176-Dimensional Hybrid Features:** ผสาน Raw Pixels (784 มิติ) เข้ากับ Vectorized HOG Gradients (392 มิติ) ช่วยจำแนกคู่แฝดสับสน เช่น D vs O, I vs J, E vs F ได้อย่างเด็ดขาด
-* **27-Class Neural Network Classifier:** โครงข่ายประสาทเทียม MLP (384×192 Neurons) เรียนรู้ทั้ง 26 ตัวอักษรและช่องว่าง
-* **Safety Review Tagging:** กลไกตรวจจับความเสี่ยง ติดแท็ก `Needs_Review = YES` อัตโนมัติเมื่อค่าความเชื่อมั่นต่ำกว่า $80\%$ เพื่อให้มนุษย์เข้ามาตรวจสอบเฉพาะจุด
-* **Executive Excel Dashboard:** ออกรายงานสรุปไฟล์ Excel สวยงาม ประกอบด้วย KPI Cards, สรุปเปรียบเทียบรายแผ่น, และผลตรวจรายช่องฟอนต์ Consolas
+* **Robust Perspective Alignment:** ตรวจจับกรอบตาราง 20×20 และดึงภาพให้ตรงด้วย *Bilateral Filter* ร่วมกับ *Directional Vertical Dilation* ขจัดปัญหาตารางเบี้ยวจากการเชื่อมติดแถบมาร์กเกอร์สีดำ
+* **Dynamic Grid Profiling (Rows & Columns):**
+  - **Dynamic Row Detection:** คำนวณความสูงของแต่ละแถวข้อสอบทั้ง 20 แถวอย่างเป็นอิสระด้วย *Horizontal Line Projection*
+  - **Dynamic Column Detection:** สแกนหาขอบเขตตารางซ้าย–ขวาจริง และคำนวณคอลัมน์เฉลี่ยแม่นยำ ขจัดปัญหาเส้นตารางเลื่อนสะสม (Grid Drift) คอลัมน์ 10–19 ได้ $100\%$
+* **Contrast & Variance Gatekeeper:** ด่านตรวจจับช่องว่างด้วยค่าสถิติความแปรปรวน ตัด Noise เกรนกระดาษของช่องว่างเปล่าได้ $100\%$ ก่อนส่งเข้าโมเดล
+* **Multi-Component Intelligent Stroke Merging & Fusion Defense:** เชื่อมต่อชิ้นส่วนและขีดกลางของตัวอักษรเดียวกัน (เช่น `H`, `E`, `A`, `K`) พร้อมระบบป้องกันเศษเส้นกริดแนวตั้งหลอมรวมเข้ากับตัวอักษร
+* **Centroid Alignment (Image Moments):** ปรับจุดศูนย์ถ่วงมวลหมึกตัวอักษร $(cx, cy) \rightarrow (14, 14)$ ตามมาตรฐาน MNIST/EMNIST ช่วยปรับสมดุลตัวอักษรเอียงหรือหางยาว
+* **1,176-Dimensional Hybrid Features:** ผสาน Raw Normalized Pixels (784 มิติ) เข้ากับ Vectorized HOG Gradients (392 มิติ, 8 Orientation Bins, 7×7 กริด)
+* **Topological Disambiguation Engine:** อัลกอริทึมแยกแยะอักษรคู่แฝดหลัง Inference:
+  - `B` vs `R`: วิเคราะห์จำนวนรูวงปิด (Euler Characteristics Holes)
+  - `F` vs `E`: ตรวจสอบความกว้างของขีดฐานล่าง
+  - `C` vs `O`: ตรวจสอบเส้นโค้งปิดขอบขวา
+  - `I` vs `-`: Topological Guard สำหรับตัวอักษร `I` เส้นตรงเดี่ยวไร้ฐาน (No Serifs)
+* **Pencil Stroke Augmentation & Pure Blank Training:** เพิ่มเคอร์เนล Erosion แนวนอน/แนวดิ่งจำลองลายมือดินสอเส้นบาง และล้างข้อมูลชุดเทรนช่องว่างให้เป็น Zero Vector บริสุทธิ์
+* **Safety Review Tagging:** ติดแท็ก `Needs_Review = YES` อัตโนมัติเมื่อค่าความเชื่อมั่นต่ำกว่า $80\%$ เพื่อให้ผู้ตรวจมนุษย์ตรวจสอบเฉพาะจุด
+* **Executive Excel Dashboard:** ออกรายงานสรุปผล [all_results.xlsx](file:///d:/Project_CV/outputs/results/all_results.xlsx) สวยงาม ประกอบด้วย KPI Cards, สรุปเปรียบเทียบรายแผ่น, และผลตรวจรายช่องในฟอนต์ Consolas
 
 ---
 
@@ -34,53 +43,54 @@
 
 ```mermaid
 graph TD
-    A["📷 ภาพถ่ายกระดาษคำตอบ<br/>(มุมกล้องเอียง / แสงเงา)"] --> B["1. Perspective Alignment<br/>(Directional Dilation & Warp)"]
-    B --> C["2. Dynamic Row Profiling<br/>(Horizontal Line Projection)"]
-    C --> D["3. Cell Isolation & Grid Border Filter<br/>(Aspect Ratio Filtering)"]
+    A["📷 ภาพถ่ายกระดาษคำตอบ<br/>(มุมกล้องเอียง / แสงเงา)"] --> B["1. Perspective Alignment<br/>(Bilateral Filter + Directional Dilation)"]
+    B --> C["2. Dynamic Grid Profiling<br/>(Horizontal & Vertical Line Projections)"]
+    C --> D["3. Variance Gate & Stroke Merger<br/>(std < 7.0 Gate + Companion Stroke Merging)"]
     D --> E["4. Centroid Alignment<br/>(Image Moments: cx, cy -> 14, 14)"]
     E --> F["5. Hybrid Feature Extraction<br/>(784 Pixels + 392 HOG = 1,176 Dims)"]
     F --> G["6. 27-Class Neural Network<br/>(MLP: 384x192 Neurons)"]
-    G --> H["7. Confidence Scoring & Review Flag<br/>(Needs_Review = YES เมื่อ Conf < 0.80)"]
-    H --> I["8. Export Visuals, JSON & Excel<br/>(Dashboard, Bounding Boxes, KPIs)"]
+    G --> H["7. Topological Disambiguation<br/>(Hole Count B vs R / Stroke Check F vs E / C vs O / I)"]
+    H --> I["8. Executive Reports & Visuals<br/>(Excel Dashboard, Result Images, JSON)"]
 ```
 
 ---
 
-## 🚀 ประสิทธิภาพการประเมินผล (Benchmark Results)
+## 🚀 ผลการประเมินความแม่นยำล่าสุด (Benchmark Evaluation Results)
 
-ผลการประเมินบนชุดข้อมูลภาพถ่ายกระดาษคำตอบลายมือจริง (**Unseen Test Sheet: 400 ช่อง**):
+ผลการทดสอบล่าสุดกับภาพถ่ายกระดาษคำตอบจริง 3 แผ่น (**รวม 1,200 ช่อง**) ที่บันทึกใน [all_results.xlsx](file:///d:/Project_CV/outputs/results/all_results.xlsx):
 
-| ตัวชี้วัด (Metric) | ผลลัพธ์ที่ได้ | รายละเอียด |
-| :--- | :---: | :--- |
-| **ความแม่นยำรวม (Overall Accuracy)** | **94.00%** | **ทายถูกต้อง 376 ตัว จาก 400 ช่อง** |
-| **ข้อที่ถูกต้อง 100% ครบทุกช่อง** | **7 ข้อ (35%)** | ถูกต้องสมบูรณ์ทั้ง 20 ช่องรวด |
-| **ข้อที่อยู่ในเกณฑ์ยอดเยี่ยม (95% – 100%)** | **13 ข้อ (65%)** | ผิดไม่เกิน 1 ตัวอักษรต่อแถว |
-| **ค่าความเชื่อมั่นเฉลี่ยรวม (Avg Confidence)** | **98.9% (0.989)** | มีความมั่นใจในการจำแนกสูงมาก |
-| **ความเร็วในการประมวลผล (Speed)** | **~1.6 วินาที / แผ่น** | รันบน CPU ทั่วไปโดยไม่ต้องใช้ GPU |
+| แผ่นทดสอบ (Test Sheet) | ลักษณะลายมือ / เครื่องมือเขียน | ช่องที่ถูกต้อง (Correct) | ความแม่นยำ (Accuracy) | สถานะการประเมิน |
+| :--- | :--- | :---: | :---: | :---: |
+| **test1.jpg** | ปากกาน้ำเงินมาตรฐาน ลายมือบรรจง | **376 / 400 ช่อง** | **94.00%** | ยอดเยี่ยมระดับ Production |
+| **test2.jpg** | ดินสอไส้บาง แรงกดเบา เส้นจาง | **299 / 400 ช่อง** | **74.75%** | ก้าวกระโดดจากเดิม (51.50% $\rightarrow$ 74.75%) |
+| **test3.jpg** | ปากกาดำหัวเข็ม ลายมือเอียงเล็กน้อย | **370 / 400 ช่อง** | **92.50%** | ยอดเยี่ยมระดับ Production |
+| **ภาพรวมทั้งระบบ (Overall)** | **ชุดทดสอบผสมผสาน 3 สไตล์** | **1,045 / 1,200 ช่อง** | **87.08%** | 🏆 **สถิติสูงสุดใหม่ (+16 ช่อง)** |
 
 ---
 
 ## 📦 โครงสร้างโปรเจกต์ (Project Directory Structure)
 
 ```text
-Project_CV/
+d:\Project_CV\
 │
-├── scan_and_predict.py       # Core Pipeline: Warp, Bounding Boxes, HOG, Centroid, Predict
-├── batch_processor.py        # ประมวลผลภาพแบบกลุ่ม & ส่งออก Excel แดชบอร์ด (all_results.xlsx)
-├── train_model.py            # สคริปต์ฝึกสอนโครงข่ายประสาทเทียมพร้อม Advanced Augmentation
-├── eval_accuracy.py          # เครื่องมือตรวจสอบความแม่นยำและวิเคราะห์ข้อผิดพลาดรายช่อง
-├── howtodo.md                # เอกสารสถาปัตยกรรมและเทคนิคการพัฒนาระบบฉบับเต็ม
-├── templete_test.md          # เทมเพลตและคู่มือข้อความสำหรับการเขียนทดสอบ 20 แถว x 20 ช่อง
-├── requirements.txt          # รายการไลบรารีและแพ็กเกจ Python
-├── README.md                 # เอกสารแนะนำและคู่มือการใช้งานโปรเจกต์
+├── scan_and_predict.py       # Core Pipeline: Warp, Dynamic Columns, Centroid, HOG, Disambiguation
+├── batch_processor.py        # Batch Runner & ส่งออกรายงาน Excel แดชบอร์ด (all_results.xlsx)
+├── train_model.py            # Neural Network Training: Data Augmentation & 27-Class MLP
+├── eval_accuracy.py          # Ground Truth Evaluation & รายงานวิเคราะห์ข้อผิดพลาดรายช่อง
+├── save_false_positives.py   # เครื่องมือสกัดและบันทึกภาพช่องว่างที่ทายผิด
+├── howtodo.md                # คู่มือสถาปัตยกรรม วิธีทำ และแนวทางเชิงเทคนิคฉบับสมบูรณ์
+├── templete_test.md          # เทมเพลตข้อความเฉลยสำหรับเขียนทดสอบ (20 แถว x 20 ช่อง)
+├── requirements.txt          # รายการไลบรารี Python ที่จำเป็น
+├── README.md                 # เอกสารภาพรวมและคู่มือเริ่มต้นใช้งาน
 │
-├── input_images/             # รูปภาพกระดาษคำตอบสำหรับฝึกสอน (1.jpg ถึง 17.jpg)
-├── test_image/               # รูปภาพกระดาษคำตอบสำหรับทดสอบ (test1.jpg ฯลฯ)
+├── input_images/             # รูปภาพกระดาษคำตอบสำหรับชุดฝึกสอน (1.jpg ถึง 63.jpg)
+├── test_image/               # รูปภาพกระดาษคำตอบสำหรับทดสอบ (test1.jpg, test2.jpg, test3.jpg)
 ├── models/
-│   └── char_classifier.pkl  # โมเดล MLP น้ำหนักโครงข่ายประสาทเทียม
+│   └── char_classifier.pkl  # โมเดลโครงข่ายประสาทเทียม MLP (1,176 Features -> 27 Classes)
 └── outputs/
-    ├── visuals/              # ภาพผลลัพธ์ตีกรอบ Bounding Box (*_result.jpg)
-    └── results/              # ไฟล์รายงาน Excel (all_results.xlsx) และ JSON (*_results.json)
+    ├── visuals/              # ภาพผลลัพธ์พร้อมตีกรอบ Bounding Box และตัวอักษรเฉลย (*_result.jpg)
+    ├── results/              # ผลการอ่านรูปแบบ JSON (*_results.json) และ Excel (all_results.xlsx)
+    └── false_positives_clear_squares/ # ข้อมูลและภาพวิเคราะห์ช่องว่างที่อ่านผิด
 ```
 
 ---
@@ -90,14 +100,17 @@ Project_CV/
 ### 1. โคลนโปรเจกต์และสร้าง Virtual Environment
 ```bash
 # Clone repository
-git clone https://github.com/your-username/Project_CV.git
+git clone https://github.com/67160213-ux/Project_CV.git
 cd Project_CV
 
-# สร้าง Virtual Environment และเปิดใช้งาน
+# สร้าง Virtual Environment
 python -m venv venv
-# สำหรับ Windows:
-venv\Scripts\activate
-# สำหรับ macOS/Linux:
+
+# เปิดใช้งาน Virtual Environment:
+# สำหรับ Windows (PowerShell):
+.\venv\Scripts\activate
+
+# สำหรับ macOS / Linux:
 source venv/bin/activate
 ```
 
@@ -110,24 +123,38 @@ pip install -r requirements.txt
 
 ## 💻 คู่มือคำสั่งการรันระบบ (Usage Guide)
 
-### 1. ฝึกสอนโมเดล (Train Model)
-หากมีการเพิ่มหรือแก้ไขภาพใน `input_images/`:
-```bash
-python train_model.py
-```
-*ระบบจะสกัดฟีเจอร์ 1,176 มิติ ทำ Advanced Augmentation (หมุน, เลื่อน, ปากกาหนา/บาง, ซูม) และแสดงความคืบหน้ารอบเทรนแบบ Real-Time ด้วย `tqdm`*
+เพื่อให้มั่นใจว่าระบบรันด้วยไลบรารีที่ถูกต้อง แนะนำให้รันผ่าน Python ของ Virtual Environment เสมอ:
 
-### 2. สแกนและตรวจกระดาษคำตอบ (Batch Processing)
+### 1. ฝึกสอนโมเดลใหม่ (Train Model)
+หากมีการเพิ่มหรือแก้ไขภาพฝึกสอนใน `input_images/`:
+```bash
+# Windows:
+.\venv\Scripts\python.exe train_model.py
+
+# Linux / macOS:
+./venv/bin/python train_model.py
+```
+*ระบบจะสกัดฟีเจอร์ 1,176 มิติ ทำ Advanced Augmentation (หมุน, เลื่อน, ปากกาหนา/บาง, ซูม) และฝึกสอนโมเดล 60 Epochs พร้อมแสดงความคืบหน้าด้วย `tqdm`*
+
+### 2. สแกนและตรวจกระดาษคำตอบแบบกลุ่ม (Batch Processing)
 นำภาพถ่ายที่ต้องการตรวจไปวางในโฟลเดอร์ `test_image/` แล้วรัน:
 ```bash
-python batch_processor.py
+# Windows:
+.\venv\Scripts\python.exe batch_processor.py
+
+# Linux / macOS:
+./venv/bin/python batch_processor.py
 ```
 *ระบบจะประมวลผลทุกภาพ สรุปผลลง [outputs/results/all_results.xlsx](file:///d:/Project_CV/outputs/results/all_results.xlsx) และบันทึกภาพตีกรอบลงใน [outputs/visuals/](file:///d:/Project_CV/outputs/visuals/)*
 
 ### 3. ประเมินความแม่นยำเทียบกับเฉลย (Evaluate Accuracy)
 ตรวจสอบความแม่นยำและแสดงรายการตัวอักษรที่อ่านผิดแบบเจาะลึก:
 ```bash
-python eval_accuracy.py
+# Windows:
+.\venv\Scripts\python.exe eval_accuracy.py
+
+# Linux / macOS:
+./venv/bin/python eval_accuracy.py
 ```
 
 ---
@@ -147,6 +174,6 @@ python eval_accuracy.py
 
 ## 👥 ผู้พัฒนาและการมีส่วนร่วม (Author & Contributions)
 
+* **Repository:** [https://github.com/67160213-ux/Project_CV](https://github.com/67160213-ux/Project_CV)
 * **ทีมพัฒนา:** Project_CV Engineering Team
-* **เทคโนโลยี:** OpenCV, Scikit-Learn, NumPy, OpenPyXL, Pandas, Tqdm
-* หากมีข้อสงสัยหรือต้องการต่อยอดระบบ สามารถเปิด Issue หรือส่ง Pull Request ได้ทันทีครับ
+* **เทคโนโลยี:** Python, OpenCV, Scikit-Learn, NumPy, OpenPyXL, Tqdm
