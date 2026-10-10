@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual Environment
+venv/
+env/
+ENV/
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Debug & Temporary artifacts
+outputs/visuals/*_debug.jpg
+outputs/visuals/*debug*.jpg
+outputs/visuals/cell_*.jpg
+outputs/visuals/debug_*.jpg
+outputs/*.png
+
