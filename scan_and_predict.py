@@ -155,7 +155,7 @@ def extract_character_features(cell_bgr, return_crop=False, return_meta=False):
         # A true border line spans almost the full cell height/width or touches the boundary
         is_vertical_border = (
             bh >= ch - 5 and (by <= 1 or by + bh >= ch - 1) and
-            (bh / max(bw, 1) >= 2.8) and (bx <= 4 or bx + bw >= cw - 4)
+            (bh / max(bw, 1) >= 2.8) and (bx <= 7 or bx + bw >= cw - 7)
         )
         is_horizontal_border = (
             bw >= cw - 5 and (by <= 1 or by + bh >= ch - 1) and
@@ -334,16 +334,21 @@ def scan_sheet(image_path, save_annotated=True):
                 confidence = float(np.max(probs))
                 
                 # --- Topological Disambiguation for Confusing Pairs ---
-                # 1. B vs R: A true B must have 2 closed loops (holes). R has 0 or 1.
+                # 1. B vs R: Distinguish B from R using hole count and bottom baseline width
                 if pred_label == "B" and char_crop is not None:
                     contours, hierarchy = cv2.findContours(char_crop, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
                     holes = sum(1 for h in hierarchy[0] if h[3] != -1) if hierarchy is not None else 0
-                    if holes <= 1:
-                        if "R" in classes_list:
+                    if holes <= 1 and "R" in classes_list:
+                        bh_c, bw_c = char_crop.shape[:2]
+                        bot_row = char_crop[-3:, :]
+                        bot_row_w = np.sum(np.any(bot_row > 0, axis=0))
+                        bot_ratio = bot_row_w / max(bw_c, 1)
+                        # An 'R' only touches the bottom with a narrow diagonal leg tip (< 0.45)
+                        # A true 'B' touches the bottom with a wide loop base (>= 0.50)
+                        if bot_ratio < 0.45:
                             prob_r = float(probs[classes_list.index("R")])
-                            if prob_r > 0.005 or "R" in [clf.classes_[i] for i in np.argsort(probs)[-4:]]:
-                                pred_label = "R"
-                                confidence = max(prob_r, 0.85)
+                            pred_label = "R"
+                            confidence = max(prob_r, 0.85)
 
                 # 2. F vs E: If bottom 25% has horizontal width extending to the right, it is an E
                 elif pred_label == "F" and char_crop is not None:
@@ -352,7 +357,7 @@ def scan_sheet(image_path, save_annotated=True):
                     bot_w = np.sum(np.any(bot_strip > 0, axis=0))
                     if "E" in classes_list:
                         prob_e = float(probs[classes_list.index("E")])
-                        if bot_w >= 0.40 * bw_c and prob_e > 0.01:
+                        if bot_w >= 0.30 * bw_c and prob_e > 0.005:
                             pred_label = "E"
                             confidence = max(prob_e, 0.85)
 
@@ -363,7 +368,7 @@ def scan_sheet(image_path, save_annotated=True):
                     right_h = np.sum(np.any(right_strip > 0, axis=1))
                     if "O" in classes_list:
                         prob_o = float(probs[classes_list.index("O")])
-                        if right_h >= 0.50 * bh_c and prob_o > 0.05:
+                        if right_h >= 0.45 * bh_c and prob_o > 0.05:
                             pred_label = "O"
                             confidence = max(prob_o, 0.85)
 
@@ -405,8 +410,12 @@ def scan_sheet(image_path, save_annotated=True):
     print("="*50)
     
     if save_annotated:
+        out_warped_path = os.path.join(OUTPUT_VISUALS_DIR, f"{base_name}_warped.jpg")
+        cv2.imwrite(out_warped_path, warped)
+        
         out_img_path = os.path.join(OUTPUT_VISUALS_DIR, f"{base_name}_result.jpg")
         cv2.imwrite(out_img_path, annotated)
+        print(f"Clean warped image saved to: {out_warped_path}")
         print(f"Annotated result image saved to: {out_img_path}")
         
     json_path = os.path.join(OUTPUT_RESULTS_DIR, f"{base_name}_results.json")

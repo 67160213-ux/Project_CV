@@ -430,18 +430,22 @@ d:\Project_CV\
 ├── batch_processor.py        # Batch Runner & ส่งออกรายงาน Excel แดชบอร์ด (all_results.xlsx)
 ├── train_model.py            # Neural Network Training: Data Augmentation & 27-Class MLP
 ├── eval_accuracy.py          # Ground Truth Evaluation & รายงานวิเคราะห์ข้อผิดพลาดรายช่อง
-├── save_false_positives.py   # เครื่องมือสกัดและบันทึกภาพช่องว่างที่ทายผิด
+├── save_false_positives.py   # เครื่องมือสกัดและบันทึกภาพวิเคราะห์จุดผิดพลาด (Utility)
 ├── howtodo.md                # คู่มือสถาปัตยกรรม วิธีทำ และแนวทางเชิงเทคนิคฉบับสมบูรณ์
-├── templete_test.md          # เทมเพลตข้อความเฉลยสำหรับเขียนทดสอบ (20 แถว x 20 ช่อง)
 ├── requirements.txt          # รายการไลบรารี Python ที่จำเป็น
 ├── README.md                 # เอกสารภาพรวมและคู่มือเริ่มต้นใช้งาน
 │
-├── input_images/             # รูปภาพกระดาษคำตอบสำหรับชุดฝึกสอน (1.jpg ถึง 17.jpg)
-├── test_image/               # รูปภาพกระดาษคำตอบสำหรับทดสอบ (test1.jpg, test2.jpg, test3.jpg)
+├── docs/                     # เอกสารวิชาการและการนำเสนอ
+│   ├── AI_Answer_Sheet_Recognition.pptx.pdf  # สไลด์นำเสนอทางการ (13 Slides)
+│   ├── script.md                            # สคริปต์บทพูดและคิวการนำเสนอ
+│   └── template_test.md                     # เทมเพลตข้อความเฉลยสำหรับเขียนทดสอบ (20 แถว x 20 ช่อง)
+│
+├── input_images/             # รูปภาพกระดาษคำตอบสำหรับชุดฝึกสอน (1.jpg ถึง 78.jpg)
+├── test_image/               # รูปภาพกระดาษคำตอบสำหรับทดสอบ (test1.jpg ถึง test6.jpg)
 ├── models/
-│   └── char_classifier.pkl  # โมเดลโครงข่ายประสาทเทียม MLP (1,176 Features -> 27 Classes)
+│   ├── char_classifier.pkl  # โมเดลโครงข่ายประสาทเทียม MLP หลัก (1,176 Features -> 27 Classes)
+│   └── char_classifier_backup.pkl  # ชุดสำรองความปลอดภัยของโมเดล
 └── outputs/
-    ├── visuals/              # ภาพผลลัพธ์พร้อมตีกรอบ Bounding Box และตัวอักษรเฉลย (*_result.jpg)
-    ├── results/              # ผลการอ่านรูปแบบ JSON (*_results.json) และ Excel (all_results.xlsx)
-    └── false_positives_clear_squares/ # ข้อมูลและภาพวิเคราะห์ช่องว่างที่อ่านผิด
+    ├── visuals/              # ภาพตารางระนาบตรง (_warped.jpg), ภาพเฉลย Bounding Box (_result.jpg), อินโฟกราฟิก
+    └── results/              # ผลการอ่านรูปแบบ JSON (*_results.json) และ Excel แดชบอร์ด (all_results.xlsx)
 ```

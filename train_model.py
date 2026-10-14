@@ -3,6 +3,7 @@ import numpy as np
 import os
 import glob
 import joblib
+import string
 from tqdm import tqdm
 from sklearn.model_selection import train_test_split
 from sklearn.neural_network import MLPClassifier
@@ -21,6 +22,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_DIR = os.path.join(BASE_DIR, "models")
 MODEL_FILE = os.path.join(MODEL_DIR, "char_classifier.pkl")
 INPUT_DIR = os.path.join(BASE_DIR, "input_images")
+EMNIST_CSV_PATH = os.path.join(BASE_DIR, "emnist_data", "emnist-byclass-train.csv")
 
 os.makedirs(MODEL_DIR, exist_ok=True)
 
@@ -140,6 +142,52 @@ def build_dataset_from_images(image_paths):
 
     return np.array(X, dtype=np.float32), np.array(y)
 
+def load_emnist_from_csv(csv_path=EMNIST_CSV_PATH, samples_per_class=500):
+    """
+    ดึงข้อมูลตัวพิมพ์ใหญ่ A-Z จาก EMNIST CSV (byclass)
+    พร้อมแก้ไข Transpose (.T), ทำ Centroid Alignment และสกัด Hybrid Features 1,176 มิติ
+    """
+    if not os.path.exists(csv_path):
+        print(f"[EMNIST] ไม่พบไฟล์ {csv_path} -> ข้ามการโหลด EMNIST")
+        return [], []
+
+    print(f"\n[EMNIST] กำลังโหลดตัวอักษร A-Z จาก EMNIST CSV (เป้าหมาย: {samples_per_class} ตัวอย่าง/ตัวอักษร)...")
+    target_total = 26 * samples_per_class
+    counts = {i: 0 for i in range(10, 36)}
+    ascii_map = {10 + i: char for i, char in enumerate(string.ascii_uppercase)}
+
+    X_emnist, y_emnist = [], []
+    pbar_emnist = tqdm(total=target_total, desc="โหลด EMNIST A-Z", unit="ตัวอย่าง")
+
+    with open(csv_path, "r", encoding="utf-8") as f:
+        for line in f:
+            lbl_str, pixel_str = line.split(",", 1)
+            lbl = int(lbl_str)
+
+            if 10 <= lbl <= 35 and counts[lbl] < samples_per_class:
+                # 1. แปลงเป็นภาพ 28x28 และสลับแกน Transpose (.T) เพื่อให้ตัวอักษรตั้งตรง
+                pix_28 = np.fromstring(pixel_str, dtype=np.uint8, sep=",").reshape(28, 28).T
+
+                # 2. จัดกึ่งกลางมวลหมึกด้วย Image Moments มาที่พิกัด (14, 14)
+                aligned = align_centroid(pix_28)
+
+                # 3. สกัด Hybrid Features 1,176 มิติ (Raw Pixels 784 + HOG 392)
+                pix_feat = aligned.flatten() / 255.0
+                hog_feat = compute_hog_28(aligned)
+                comb_feat = np.hstack([pix_feat, hog_feat]).astype(np.float32)
+
+                X_emnist.append(comb_feat)
+                y_emnist.append(ascii_map[lbl])
+                counts[lbl] += 1
+                pbar_emnist.update(1)
+
+                if len(X_emnist) == target_total:
+                    break
+
+    pbar_emnist.close()
+    print(f"[EMNIST] โหลดเสร็จสิ้น: รวม {len(X_emnist):,} ตัวอย่าง ({samples_per_class} ตัวอย่าง/ตัวอักษร)")
+    return X_emnist, y_emnist
+
 def train_and_save():
     image_paths = sorted(glob.glob(os.path.join(INPUT_DIR, "*.jpg")) + glob.glob(os.path.join(INPUT_DIR, "*.png")))
     if not image_paths:
@@ -147,12 +195,25 @@ def train_and_save():
 
     print("=" * 65)
     print(f" เริ่มต้นกระบวนการฝึกสอนโมเดล (Hybrid Pixels + HOG + Centroid Alignment)")
-    print(f" ประมวลผลจาก: {len(image_paths)} ภาพ (มิติ Feature: {FEATURE_DIM} มิติ)")
+    print(f" ประมวลผลจากกระดาษคำตอบ: {len(image_paths)} ภาพ (มิติ Feature: {FEATURE_DIM} มิติ)")
     print("=" * 65)
 
-    X, y = build_dataset_from_images(image_paths)
+    X_sheet, y_sheet = build_dataset_from_images(image_paths)
+
+    # ดึงข้อมูลตัวอักษรลายมือเพิ่มเติมจาก EMNIST (ตัวละ 500 ภาพ = 13,000 ตัวอย่าง)
+    X_emnist, y_emnist = load_emnist_from_csv(EMNIST_CSV_PATH, samples_per_class=500)
+
+    if len(X_emnist) > 0:
+        print("\nกำลังผสานชุดข้อมูลกระดาษคำตอบกับ EMNIST...")
+        X = np.vstack([X_sheet, np.array(X_emnist, dtype=np.float32)])
+        y = np.concatenate([y_sheet, np.array(y_emnist)])
+    else:
+        X, y = X_sheet, y_sheet
+
     classes = np.unique(y)
-    print(f"\nสรุปข้อมูลชุดฝึกสอน:")
+    print(f"\nสรุปข้อมูลชุดฝึกสอนรวม:")
+    print(f" - ข้อมูลจากกระดาษคำตอบ: {len(X_sheet):,} ตัวอย่าง")
+    print(f" - ข้อมูลเสริมจาก EMNIST: {len(X_emnist):,} ตัวอย่าง")
     print(f" - จำนวนตัวอย่างทั้งหมด: {len(X):,} ตัวอย่าง")
     print(f" - มิติเวกเตอร์ (Features): {X.shape[1]} มิติ (784 Pixels + 392 HOG)")
     print(f" - จำนวนคลาสที่เรียนรู้: {len(classes)} คลาส ({', '.join(classes)})")
