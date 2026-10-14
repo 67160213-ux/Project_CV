@@ -27,3 +27,6 @@ models/*backup*
 
 # Heavy external datasets
 emnist_data/
+
+# Scratch & experimental tests
+scratch/

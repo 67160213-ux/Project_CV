@@ -357,22 +357,57 @@ def scan_sheet(image_path, save_annotated=True):
                     bot_w = np.sum(np.any(bot_strip > 0, axis=0))
                     if "E" in classes_list:
                         prob_e = float(probs[classes_list.index("E")])
-                        if bot_w >= 0.30 * bw_c and prob_e > 0.005:
+                        if bot_w >= 0.25 * bw_c and prob_e > 0.005:
                             pred_label = "E"
                             confidence = max(prob_e, 0.85)
 
-                # 3. C vs O: If right side has pixels closing the loop, check if O
+                # 3. C vs O & C vs D:
                 elif pred_label == "C" and char_crop is not None:
                     bh_c, bw_c = char_crop.shape[:2]
-                    right_strip = char_crop[:, int(bw_c * 0.75):]
-                    right_h = np.sum(np.any(right_strip > 0, axis=1))
-                    if "O" in classes_list:
-                        prob_o = float(probs[classes_list.index("O")])
-                        if right_h >= 0.45 * bh_c and prob_o > 0.05:
+                    # Check D first: if left spine is a straight vertical line, it is D
+                    if "D" in classes_list and bh_c >= 18:
+                        left_col = char_crop[:, :max(int(bw_c * 0.25), 2)]
+                        left_h = np.sum(np.any(left_col > 0, axis=1))
+                        prob_d = float(probs[classes_list.index("D")])
+                        if left_h >= 0.85 * bh_c and prob_d > 0.01:
+                            pred_label = "D"
+                            confidence = max(prob_d, 0.85)
+                    # If not D, check if right side has pixels closing the loop (O)
+                    if pred_label == "C" and "O" in classes_list:
+                        k_close_c = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+                        closed_c = cv2.morphologyEx(char_crop, cv2.MORPH_CLOSE, k_close_c)
+                        contours_c, hierarchy_c = cv2.findContours(closed_c, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
+                        holes_c = sum(1 for h in hierarchy_c[0] if h[3] != -1) if hierarchy_c is not None else 0
+                        if holes_c >= 1 and bw_c >= 15:
                             pred_label = "O"
-                            confidence = max(prob_o, 0.85)
+                            confidence = 0.85
+                        else:
+                            right_strip = char_crop[:, int(bw_c * 0.75):]
+                            right_h = np.sum(np.any(right_strip > 0, axis=1))
+                            prob_o = float(probs[classes_list.index("O")])
+                            if right_h >= 0.45 * bh_c and prob_o > 0.05:
+                                pred_label = "O"
+                                confidence = max(prob_o, 0.85)
 
-                # 4. Topological Guard for 'I':
+                # 4. U vs V: Sharp pointed tip vs rounded loop baseline
+                if pred_label == "U" and char_crop is not None and "V" in classes_list:
+                    bh_c, bw_c = char_crop.shape[:2]
+                    bot_row = char_crop[-2:, :]
+                    bot_w = np.sum(np.any(bot_row > 0, axis=0))
+                    prob_v = float(probs[classes_list.index("V")])
+                    if (bot_w <= 3 or bot_w / max(bw_c, 1) <= 0.20) and prob_v > 0.02:
+                        pred_label = "V"
+                        confidence = max(prob_v, 0.85)
+                elif pred_label == "V" and char_crop is not None and "U" in classes_list:
+                    bh_c, bw_c = char_crop.shape[:2]
+                    bot_row = char_crop[-3:, :]
+                    bot_w = np.sum(np.any(bot_row > 0, axis=0))
+                    prob_u = float(probs[classes_list.index("U")])
+                    if bot_w / max(bw_c, 1) >= 0.40 and prob_u > 0.05:
+                        pred_label = "U"
+                        confidence = max(prob_u, 0.85)
+
+                # 5. Topological Guard for 'I':
                 # Tall thin vertical stroke centered in the cell (not touching cell borders)
                 if char_crop is not None and stroke_meta is not None:
                     s_x0 = stroke_meta["x0"]

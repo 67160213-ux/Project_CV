@@ -495,8 +495,8 @@
     },
     {
       "col": 17,
-      "character": "F",
-      "confidence": 0.789
+      "character": "E",
+      "confidence": 0.85
     },
     {
       "col": 18,
@@ -562,8 +562,8 @@
     },
     {
       "col": 10,
-      "character": "C",
-      "confidence": 1.0
+      "character": "O",
+      "confidence": 0.85
     },
     {
       "col": 11,
@@ -1169,8 +1169,8 @@
     },
     {
       "col": 9,
-      "character": "F",
-      "confidence": 0.986
+      "character": "E",
+      "confidence": 0.85
     },
     {
       "col": 10,
@@ -1525,8 +1525,8 @@
     },
     {
       "col": 19,
-      "character": "V",
-      "confidence": 0.627
+      "character": "U",
+      "confidence": 0.85
     }
   ],
   "16": [

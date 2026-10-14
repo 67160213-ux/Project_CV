@@ -4,7 +4,7 @@
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![OpenCV](https://img.shields.io/badge/OpenCV-4.10%2B-green.svg)](https://opencv.org/)
 [![Scikit--Learn](https://img.shields.io/badge/Scikit--Learn-1.3%2B-orange.svg)](https://scikit-learn.org/)
-[![Accuracy](https://img.shields.io/badge/Overall%20Accuracy-92.08%25-brightgreen.svg)]()
+[![Accuracy](https://img.shields.io/badge/Overall%20Accuracy-92.21%25-brightgreen.svg)]()
 [![Best Sheet](https://img.shields.io/badge/Best%20Accuracy-97.25%25-success.svg)]()
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)]()
 
@@ -12,7 +12,7 @@
 
 ## 📌 บทนำ (Introduction)
 
-**Project_CV** เป็นระบบประมวลผลภาพ (Computer Vision) และโครงข่ายประสาทเทียม (Deep Learning / Multi-Layer Perceptron) สำหรับตรวจจับ แปลงระนาบ และอ่านตัวอักษรภาษาอังกฤษเขียนมือ (**Handwritten English A–Z**) รวมถึงตรวจจับช่องว่าง (**Empty Space `-`**) จากภาพถ่ายกระดาษคำตอบขนาด **20 แถว × 20 คอลัมน์ (400 ช่องต่อแผ่น)** ครอบคลุมชุดทดสอบจริง **6 แผ่น รวม 2,400 ช่อง** ด้วยสถิติความแม่นยำระดับ **92.08%**
+**Project_CV** เป็นระบบประมวลผลภาพ (Computer Vision) และโครงข่ายประสาทเทียม (Deep Learning / Multi-Layer Perceptron) สำหรับตรวจจับ แปลงระนาบ และอ่านตัวอักษรภาษาอังกฤษเขียนมือ (**Handwritten English A–Z**) รวมถึงตรวจจับช่องว่าง (**Empty Space `-`**) จากภาพถ่ายกระดาษคำตอบขนาด **20 แถว × 20 คอลัมน์ (400 ช่องต่อแผ่น)** ครอบคลุมชุดทดสอบจริง **6 แผ่น รวม 2,400 ช่อง** ด้วยสถิติความแม่นยำระดับ **92.21%**
 
 ระบบได้รับการออกแบบให้รองรับภาพถ่ายจากกล้องสมาร์ตโฟนทั่วไปที่มีมุมมองเอียง แสงเงาไม่สม่ำเสมอ และความหลากหลายของลายมือมนุษย์ (ทั้งปากกาหมึกซึม ปากกาลูกลื่น ปากกาเจล และดินสอเส้นบาง) พร้อมระบบสร้างรายงานผลลัพธ์ในรูปแบบ **Executive Excel Dashboard** และภาพหลักฐานตีกรอบสีเขียว/แดง (Visual Bounding Boxes) อัตโนมัติ
 
@@ -49,8 +49,8 @@ graph TD
     D --> E["4. Centroid Alignment<br/>(Image Moments: cx, cy -> 14, 14)"]
     E --> F["5. Hybrid Feature Extraction<br/>(784 Pixels + 392 HOG = 1,176 Dims)"]
     F --> G["6. 27-Class Neural Network<br/>(MLP: 384x192 Neurons)"]
-    G --> H["7. Topological Disambiguation<br/>(Smart Leg B vs R / Stroke Check F vs E / C vs O / I)"]
-    H --> I["8. Executive Reports & Visuals<br/>(Excel Dashboard, Result Images, 92.08% Accuracy)"]
+    G --> H["7. Topological Disambiguation<br/>(Smart Leg B vs R / F vs E / C vs D / U vs V / C vs O / I)"]
+    H --> I["8. Executive Reports & Visuals<br/>(Excel Dashboard, Result Images, 92.21% Accuracy)"]
 ```
 
 ---
@@ -62,12 +62,12 @@ graph TD
 | แผ่นทดสอบ (Test Sheet) | ลักษณะลายมือ / เครื่องมือเขียน | ช่องที่ถูกต้อง (Correct) | ความแม่นยำ (Accuracy) | สถานะการประเมิน |
 | :--- | :--- | :---: | :---: | :---: |
 | **test1.jpg** | ปากกาน้ำเงินมาตรฐาน ลายมือบรรจง เป็นระเบียบ | **389 / 400 ช่อง** | **97.25%** | ความแม่นยำสูงระดับเกรดอุตสาหกรรม |
-| **test2.jpg** | ลายมือหวัด/เอียง ดินสอจาง (โจทย์ท้าทายที่สุด) | **312 / 400 ช่อง** | **78.00%** | สถิติสูงสุดใหม่ (51.5% $\rightarrow$ 74.5% $\rightarrow$ 78.00%) |
+| **test2.jpg** | ลายมือหวัด/เอียง ดินสอจาง (โจทย์ท้าทายที่สุด) | **315 / 400 ช่อง** | **78.75%** | สถิติสูงสุดใหม่ (51.5% $\rightarrow$ 78.0% $\rightarrow$ 78.75%) |
 | **test3.jpg** | ปากกาดำหัวเข็ม ลายมือเอียงเล็กน้อย | **380 / 400 ช่อง** | **95.00%** | ยอดเยี่ยมระดับ Production |
 | **test4.jpg** | ดินสอไส้บาง แรงกดเบา เส้นบาง | **386 / 400 ช่อง** | **96.50%** | อ่านเส้นดินสอจางได้อย่างเสถียร |
 | **test5.jpg** | ปากกาน้ำเงิน ลายมือเขียนเร็วทั่วไป | **371 / 400 ช่อง** | **92.75%** | ยอดเยี่ยมระดับ Production |
 | **test6.jpg** | ปากกาลูกลื่น ลายมือตัวพิมพ์ใหญ่ทั่วไป | **372 / 400 ช่อง** | **93.00%** | ยอดเยี่ยมระดับ Production |
-| **ภาพรวมทั้งระบบ (Overall)** | **ชุดทดสอบ 6 รูปแบบลายมือ (2,400 เซลล์)** | **2,210 / 2,400 ช่อง** | **92.08%** | 🏆 **สถิติสูงสุดใหม่ (New Record)** |
+| **ภาพรวมทั้งระบบ (Overall)** | **ชุดทดสอบ 6 รูปแบบลายมือ (2,400 เซลล์)** | **2,213 / 2,400 ช่อง** | **92.21%** | 🏆 **สถิติสูงสุดใหม่ (New Record)** |
 
 > [!NOTE]
 > **Human-in-the-Loop Safety Assurance:**
