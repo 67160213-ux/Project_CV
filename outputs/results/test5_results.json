@@ -460,8 +460,8 @@
     },
     {
       "col": 10,
-      "character": "R",
-      "confidence": 0.85
+      "character": "B",
+      "confidence": 1.0
     },
     {
       "col": 11,
@@ -1761,8 +1761,8 @@
     },
     {
       "col": 5,
-      "character": "F",
-      "confidence": 1.0
+      "character": "E",
+      "confidence": 0.85
     },
     {
       "col": 6,

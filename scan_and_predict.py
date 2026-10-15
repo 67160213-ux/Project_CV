@@ -204,20 +204,33 @@ def extract_character_features(cell_bgr, return_crop=False, return_meta=False):
     candidates.sort(key=lambda x: x[5], reverse=True)
     p_lbl, p_x, p_y, p_w, p_h, p_area = candidates[0]
     
+    # Initialize merged labels and accumulated bounding box
     merged_lbls = [p_lbl]
-    # Merge companion strokes of the same character (e.g., crossbars, second vertical stems)
-    for (lbl, bx, by, bw, bh, area) in candidates[1:]:
-        dist_x = max(0, bx - (p_x + p_w), p_x - (bx + bw))
-        dist_y = max(0, by - (p_y + p_h), p_y - (by + bh))
+    m_x0, m_y0, m_x1, m_y1 = p_x, p_y, p_x + p_w, p_y + p_h
+    
+    # Iterative expansion until all companion strokes of the character are merged
+    changed = True
+    remaining = candidates[1:]
+    while changed and remaining:
+        changed = False
+        still_remaining = []
+        for (lbl, bx, by, bw, bh, area) in remaining:
+            # Prevent merging border line remnants close to outer cell edges (5px margin)
+            if (bx <= 5 or bx + bw >= cw - 5) and (bh / max(bw, 1) >= 2.5):
+                continue
+            dist_x = max(0, bx - m_x1, m_x0 - (bx + bw))
+            dist_y = max(0, by - m_y1, m_y0 - (by + bh))
+            if dist_x <= 16 and dist_y <= 12 and (area >= 0.08 * p_area or bh >= 0.25 * p_h):
+                merged_lbls.append(lbl)
+                m_x0 = min(m_x0, bx)
+                m_y0 = min(m_y0, by)
+                m_x1 = max(m_x1, bx + bw)
+                m_y1 = max(m_y1, by + bh)
+                changed = True
+            else:
+                still_remaining.append((lbl, bx, by, bw, bh, area))
+        remaining = still_remaining
         
-        # Prevent merging border line remnants close to the outer cell edges (5px margin)
-        if (bx <= 5 or bx + bw >= cw - 5) and (bh / max(bw, 1) >= 2.5):
-            continue
-
-        # A stroke belongs to the same character if it is within typical character span
-        if dist_x <= 16 and dist_y <= 10 and (area >= 0.10 * p_area or bh >= 0.30 * p_h):
-            merged_lbls.append(lbl)
-            
     char_mask = np.isin(labels, merged_lbls).astype(np.uint8) * 255
     pts = np.argwhere(char_mask > 0)
     if len(pts) == 0:
@@ -368,23 +381,34 @@ def scan_sheet(image_path, save_annotated=True):
                         bot_row = char_crop[-3:, :]
                         bot_row_w = np.sum(np.any(bot_row > 0, axis=0))
                         bot_ratio = bot_row_w / max(bw_c, 1)
-                        # An 'R' touches the bottom with a diagonal leg tip (<= 0.52)
-                        # A true 'B' touches the bottom with a wide loop base (> 0.52)
-                        if bot_ratio <= 0.52:
-                            prob_r = float(probs[classes_list.index("R")])
+                        prob_b = float(probs[classes_list.index("B")])
+                        prob_r = float(probs[classes_list.index("R")])
+                        
+                        # Check for two distinct separated legs at bottom baseline
+                        bot_cols = np.where(np.any(bot_row > 0, axis=0))[0]
+                        max_gap = 0
+                        if len(bot_cols) >= 2:
+                            diffs = np.diff(bot_cols)
+                            max_gap = np.max(diffs) - 1 if len(diffs) > 0 else 0
+                        has_legs = (max_gap >= 9 and bot_cols[0] <= 5 and bot_cols[-1] >= bw_c - 6)
+                        
+                        # Flip to R only if two clear legs exist, or if bot_ratio <= 0.52 and model is not confident in B
+                        if has_legs or (bot_ratio <= 0.52 and prob_b < 0.90):
                             pred_label = "R"
                             confidence = max(prob_r, 0.85)
 
                 # 2. F vs E: If bottom 25% has horizontal width extending to the right, it is an E
-                elif pred_label == "F" and char_crop is not None:
+                elif pred_label == "F" and char_crop is not None and "E" in classes_list:
                     bh_c, bw_c = char_crop.shape[:2]
                     bot_strip = char_crop[int(bh_c * 0.75):, :]
                     bot_w = np.sum(np.any(bot_strip > 0, axis=0))
-                    if "E" in classes_list:
-                        prob_e = float(probs[classes_list.index("E")])
-                        if bot_w >= 0.25 * bw_c and prob_e > 0.005:
-                            pred_label = "E"
-                            confidence = max(prob_e, 0.85)
+                    prob_e = float(probs[classes_list.index("E")])
+                    cols = np.where(np.any(bot_strip > 0, axis=0))[0]
+                    reach = (cols[-1] / max(bw_c - 1, 1)) if len(cols) > 0 else 0
+                    count = len(cols)
+                    if (bot_w >= 0.25 * bw_c and prob_e > 0.005) or (reach >= 0.70 and count >= 10):
+                        pred_label = "E"
+                        confidence = max(prob_e, 0.85)
 
                 # 3. C vs O & C vs D:
                 elif pred_label == "C" and char_crop is not None:
@@ -403,18 +427,31 @@ def scan_sheet(image_path, save_annotated=True):
                         closed_c = cv2.morphologyEx(char_crop, cv2.MORPH_CLOSE, k_close_c)
                         contours_c, hierarchy_c = cv2.findContours(closed_c, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
                         holes_c = sum(1 for h in hierarchy_c[0] if h[3] != -1) if hierarchy_c is not None else 0
+                        prob_c = float(probs[classes_list.index("C")])
+                        prob_o = float(probs[classes_list.index("O")])
                         if holes_c >= 1 and bw_c >= 15:
+                            pred_label = "O"
+                            confidence = 0.85
+                        elif abs(prob_c - prob_o) <= 0.05 and bw_c >= 18:
                             pred_label = "O"
                             confidence = 0.85
                         else:
                             right_strip = char_crop[:, int(bw_c * 0.75):]
                             right_h = np.sum(np.any(right_strip > 0, axis=1))
-                            prob_o = float(probs[classes_list.index("O")])
                             if right_h >= 0.45 * bh_c and prob_o > 0.05:
                                 pred_label = "O"
                                 confidence = max(prob_o, 0.85)
 
-                # 4. U vs V: Sharp pointed tip vs rounded loop baseline
+                # 4. T vs I: Serif I with wide bottom bar
+                elif pred_label == "T" and char_crop is not None and "I" in classes_list:
+                    bh_c, bw_c = char_crop.shape[:2]
+                    bot_strip = char_crop[-3:, :]
+                    bot_w = np.sum(np.any(bot_strip > 0, axis=0))
+                    if bot_w >= 10:
+                        pred_label = "I"
+                        confidence = 0.90
+
+                # 5. U vs V: Sharp pointed tip vs rounded loop baseline
                 if pred_label == "U" and char_crop is not None and "V" in classes_list:
                     bh_c, bw_c = char_crop.shape[:2]
                     bot_row = char_crop[-2:, :]
@@ -425,12 +462,17 @@ def scan_sheet(image_path, save_annotated=True):
                         confidence = max(prob_v, 0.85)
                 elif pred_label == "V" and char_crop is not None and "U" in classes_list:
                     bh_c, bw_c = char_crop.shape[:2]
-                    bot_row = char_crop[-3:, :]
-                    bot_w = np.sum(np.any(bot_row > 0, axis=0))
                     prob_u = float(probs[classes_list.index("U")])
-                    if bot_w / max(bw_c, 1) >= 0.40 and prob_u > 0.05:
-                        pred_label = "U"
-                        confidence = max(prob_u, 0.85)
+                    prob_v = float(probs[classes_list.index("V")])
+                    top_y = int(bh_c * 0.20)
+                    mid_y = int(bh_c * 0.60)
+                    top_cols = np.where(char_crop[top_y] > 0)[0]
+                    mid_cols = np.where(char_crop[mid_y] > 0)[0]
+                    if len(top_cols) >= 2 and len(mid_cols) >= 2:
+                        conv = (mid_cols[0] - top_cols[0]) + (top_cols[-1] - mid_cols[-1])
+                        if conv <= 3 and abs(prob_u - prob_v) < 0.05:
+                            pred_label = "U"
+                            confidence = max(prob_u, 0.85)
 
                 # 5. J vs I: Bottom-left upward hook detection
                 # A true 'J' curves upwards to the left at the bottom (two peaks in hook zone or strong left overhang).
