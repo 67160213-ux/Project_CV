@@ -4,7 +4,7 @@
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![OpenCV](https://img.shields.io/badge/OpenCV-4.10%2B-green.svg)](https://opencv.org/)
 [![Scikit--Learn](https://img.shields.io/badge/Scikit--Learn-1.3%2B-orange.svg)](https://scikit-learn.org/)
-[![Accuracy](https://img.shields.io/badge/Overall%20Accuracy-93.58%25-brightgreen.svg)]()
+[![Accuracy](https://img.shields.io/badge/Overall%20Accuracy-93.75%25-brightgreen.svg)]()
 [![Best Sheet](https://img.shields.io/badge/Best%20Accuracy-99.50%25-success.svg)]()
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)]()
 
@@ -12,7 +12,7 @@
 
 ## 📌 บทนำ (Introduction)
 
-**Project_CV** เป็นระบบประมวลผลภาพ (Computer Vision) และโครงข่ายประสาทเทียม (Deep Learning / Multi-Layer Perceptron) สำหรับตรวจจับ แปลงระนาบ และอ่านตัวอักษรภาษาอังกฤษเขียนมือ (**Handwritten English A–Z**) รวมถึงตรวจจับช่องว่าง (**Empty Space `-`**) จากภาพถ่ายกระดาษคำตอบขนาด **20 แถว × 20 คอลัมน์ (400 ช่องต่อแผ่น)** ครอบคลุมชุดทดสอบจริง **6 แผ่น รวม 2,400 ช่อง** ด้วยสถิติความแม่นยำระดับ **93.58% (2,246 / 2,400 ช่อง)**
+**Project_CV** เป็นระบบประมวลผลภาพ (Computer Vision) และโครงข่ายประสาทเทียม (Deep Learning / Multi-Layer Perceptron) สำหรับตรวจจับ แปลงระนาบ และอ่านตัวอักษรภาษาอังกฤษเขียนมือ (**Handwritten English A–Z**) รวมถึงตรวจจับช่องว่าง (**Empty Space `-`**) จากภาพถ่ายกระดาษคำตอบขนาด **20 แถว × 20 คอลัมน์ (400 ช่องต่อแผ่น)** ครอบคลุมชุดทดสอบจริง **6 แผ่น รวม 2,400 ช่อง** ด้วยสถิติความแม่นยำระดับ **93.75% (2,250 / 2,400 ช่อง)**
 
 ระบบได้รับการออกแบบให้รองรับภาพถ่ายจากกล้องสมาร์ตโฟนทั่วไปที่มีมุมมองเอียง แสงเงาไม่สม่ำเสมอ และความหลากหลายของลายมือมนุษย์ (ทั้งปากกาหมึกซึม ปากกาลูกลื่น ปากกาเจล และดินสอเส้นบาง) พร้อมระบบสร้างรายงานผลลัพธ์ในรูปแบบ **Executive Excel Dashboard** และภาพหลักฐานตีกรอบสีเขียว/แดง (Visual Bounding Boxes) อัตโนมัติ
 
@@ -25,16 +25,18 @@
   - **Dynamic Row Detection:** คำนวณความสูงของแต่ละแถวข้อสอบทั้ง 20 แถวอย่างเป็นอิสระด้วย *Horizontal Line Projection*
   - **Dynamic Column Detection:** สแกนหาขอบเขตตารางซ้าย–ขวาจริง และคำนวณคอลัมน์เฉลี่ยแม่นยำ ขจัดปัญหาเส้นตารางเลื่อนสะสม (Grid Drift) คอลัมน์ 10–19 ได้ $100\%$
 * **Contrast & Variance Gatekeeper:** ด่านตรวจจับช่องว่างด้วยค่าสถิติความแปรปรวน ตัด Noise เกรนกระดาษของช่องว่างเปล่าได้ $100\%$ ก่อนส่งเข้าโมเดล
-* **Multi-Component Intelligent Stroke Merging & Expanded Border Guard:** เชื่อมต่อชิ้นส่วนและขีดกลางของตัวอักษรเดียวกัน (เช่น `H`, `E`, `A`, `K`) พร้อมตัวกรองขอบแนวตั้ง 7 พิกเซล (`bx <= 7 or bx + bw >= cw - 7`) ป้องกันเศษเส้นกริดริมขอบหลอมรวมเข้ากับตัวอักษร
+* **Iterative Accumulated Stroke Merging & Expanded Border Guard:** เชื่อมต่อชิ้นส่วนและขีดแยกของตัวอักษรเดียวกัน (เช่น `E`, `H`, `A`, `K`, `B`) ด้วยการขยาย Bounding Box สะสมอย่างต่อเนื่อง ป้องกันการทำขีดล่างของตัวอักษรหลุดหาย พร้อมตัวกรองขอบแนวตั้งและกล่องกริดกลวง (`is_hollow_box`) ขจัดเศษขอบตารางหลอมรวมเข้ากับตัวอักษร
 * **Centroid Alignment (Image Moments):** ปรับจุดศูนย์ถ่วงมวลหมึกตัวอักษร $(cx, cy) \rightarrow (14, 14)$ ตามมาตรฐาน MNIST/EMNIST ช่วยปรับสมดุลตัวอักษรเอียงหรือหางยาว
 * **1,176-Dimensional Hybrid Features:** ผสาน Raw Normalized Pixels (784 มิติ) เข้ากับ Vectorized HOG Gradients (392 มิติ, 8 Orientation Bins, 7×7 กริด)
-* **Topological Disambiguation Engine:** อัลกอริทึมแยกแยะอักษรคู่แฝดหลัง Inference:
-  - `B` vs `R`: **Smart Geometric Leg Detection** (วิเคราะห์อัตราส่วนความกว้างฐานแตะพื้น `bot_ratio < 0.45` vs $\ge 0.50$) ร่วมกับ Euler Holes ป้องกันการสับสนจากลายมือหวัด/เอียง
-  - `F` vs `E`: ตรวจสอบความกว้างของขีดฐานล่าง ($30\%$)
-  - `C` vs `O`: ตรวจสอบเส้นโค้งปิดขอบขวา ($45\%$)
-  - `I` vs `-`: Topological Guard สำหรับตัวอักษร `I` เส้นตรงเดี่ยวไร้ฐาน (No Serifs)
-* **Domain Dataset & Advanced Augmentation:** ฝึกสอนบนภาพกระดาษคำตอบจริง **78 แผ่น (31,200 ช่องตัวอย่าง)** ผสาน Advanced Augmentation (หมุน, เลื่อน, ซูม, จำลองเส้นดินสอจางด้วย Erosion แนวนอน/แนวดิ่ง) กว่า 350,000 ตัวอย่าง
-* **Safety Review Tagging:** ติดแท็ก `Needs_Review = YES` อัตโนมัติเมื่อค่าความเชื่อมั่นต่ำกว่า $80\%$ เพื่อให้ผู้ตรวจมนุษย์ตรวจสอบเฉพาะจุด (ตรวจทานเพียง 42 จาก 120 ข้อ ช่วยลดภาระงานลง 65%)
+* **Probabilistic Character Ensemble:** ผสานน้ำหนักการทำนายแบบ 50/50 ระหว่างโมเดลผู้เชี่ยวชาญลายมือนักเรียน (Student-Sheet Specialist v1) และโมเดลความรู้ทั่วไปทนทานต่อดินสอจาง (Generalist v3 + EMNIST/A-Z + Erosion Invariance)
+* **Surgical Topological Disambiguation Engine:** อัลกอริทึมคัดกรองทางเรขาคณิตและกายวิภาคตัวอักษรหลัง Inference:
+  - `B` vs `R`: **Dual-Leg Baseline Arch Detection** (ตรวจจับขาซ้ายตรงและขาขวาเฉียงแยกกันที่ฐาน `max_gap >= 9` และสงวนความมั่นใจสูงของ B)
+  - `F` vs `E`: **Horizontal Baseline Reach** (ตรวจวัดการยื่นของขีดฐานล่างข้ามฝั่ง `reach >= 0.70` และ `count >= 10`)
+  - `T` vs `I`: **Serif Base Bar Check** (ตรวจจับขีดแนวนอนด้านล่าง `bot_w >= 10` เพื่อจำแนก I แบบมีเชิงออกจาก T)
+  - `U` vs `V`: **Parallel Stroke Convergence** (ตรวจวัดอัตราการลู่เข้าของขอบซ้าย-ขวา `convergence <= 3` vs $\ge 4$)
+  - `C` vs `O`: ตรวจสอบช่องว่างปิดของวงรีขวาและตัวตัดสินความน่าจะเป็นสูสี (Tie-breaker)
+  - `J` vs `I`: Bottom-Left Hook & Serif Symmetry Guard
+  - `I` vs `-`: Topological Guard สำหรับตัวอักษร `I` เสาตรงเดี่ยวกึ่งกลางช่อง
 * **Executive Excel Dashboard:** ออกรายงานสรุปผล [all_results.xlsx](file:///d:/Project_CV/outputs/results/all_results.xlsx) สวยงาม ประกอบด้วย KPI Cards, สรุปเปรียบเทียบรายแผ่น, และผลตรวจรายช่องในฟอนต์ Consolas
 
 ---
@@ -45,12 +47,12 @@
 graph TD
     A["📷 ภาพถ่ายกระดาษคำตอบ<br/>(มุมกล้องเอียง / แสงเงา)"] --> B["1. Perspective Alignment<br/>(Bilateral Filter + Directional Dilation)"]
     B --> C["2. Dynamic Grid Profiling<br/>(Horizontal & Vertical Line Projections)"]
-    C --> D["3. Variance Gate & Stroke Merger<br/>(std < 7.0 Gate + Companion Stroke Merging)"]
+    C --> D["3. Variance Gate & Stroke Merger<br/>(std < 7.0 Gate + Accumulated Stroke Merging)"]
     D --> E["4. Centroid Alignment<br/>(Image Moments: cx, cy -> 14, 14)"]
     E --> F["5. Hybrid Feature Extraction<br/>(784 Pixels + 392 HOG = 1,176 Dims)"]
-    F --> G["6. 27-Class Neural Network<br/>(MLP: 384x192 Neurons)"]
-    G --> H["7. Topological Disambiguation<br/>(Smart Leg B vs R / F vs E / C vs D / U vs V / C vs O / I)"]
-    H --> I["8. Executive Reports & Visuals<br/>(Excel Dashboard, Result Images, 92.21% Accuracy)"]
+    F --> G["6. Character Ensemble Classifier<br/>(Specialist v1 + Generalist v3 Blending)"]
+    G --> H["7. Surgical Disambiguation<br/>(Dual-Leg B vs R / Reach F vs E / Serif T vs I / Conv U vs V / C vs O)"]
+    H --> I["8. Executive Reports & Visuals<br/>(Excel Dashboard, Result Images, 93.75% Accuracy)"]
 ```
 
 ---
@@ -64,14 +66,14 @@ graph TD
 | **test1.jpg** | ปากกาน้ำเงินมาตรฐาน ลายมือบรรจง เป็นระเบียบ | **398 / 400 ช่อง** | **99.50%** | 🏆 สถิติสูงสุดระดับสมบูรณ์แบบ (ผิดเพียง 2 ตัว) |
 | **test2.jpg** | ลายมือหวัด/เอียง ดินสอจาง (โจทย์ท้าทายที่สุด) | **322 / 400 ช่อง** | **80.50%** | ทะลุเกณฑ์ 80% สำเร็จ (51.5% $\rightarrow$ 78.75% $\rightarrow$ **80.50%**) |
 | **test3.jpg** | ปากกาดำหัวเข็ม ลายมือเอียงเล็กน้อย | **381 / 400 ช่อง** | **95.25%** | ยอดเยี่ยมระดับ Production |
-| **test4.jpg** | ดินสอไส้บาง แรงกดเบา เส้นบาง | **396 / 400 ช่อง** | **99.00%** | 🏆 สถิติสูงสุดระดับสมบูรณ์แบบ (ผิดเพียง 4 ตัว) |
-| **test5.jpg** | ปากกาน้ำเงิน ลายมือเขียนเร็วทั่วไป | **373 / 400 ช่อง** | **93.25%** | ยอดเยี่ยมระดับ Production |
-| **test6.jpg** | ปากกาลูกลื่น ลายมือตัวพิมพ์ใหญ่ทั่วไป | **376 / 400 ช่อง** | **94.00%** | ยอดเยี่ยมระดับ Production |
-| **ภาพรวมทั้งระบบ (Overall)** | **ชุดทดสอบ 6 รูปแบบลายมือ (2,400 เซลล์)** | **2,246 / 2,400 ช่อง** | **93.58%** | 🏆 **สถิติสูงสุดใหม่ตลอดกาล (+33 ช่องจากเดิม)** |
+| **test4.jpg** | ดินสอไส้บาง แรงกดเบา เส้นบาง | **397 / 400 ช่อง** | **99.25%** | 🏆 **สถิติใหม่สูงสุดเป็นประวัติการณ์ (ผิดเพียง 3 ตัว!)** |
+| **test5.jpg** | ปากกาน้ำเงิน ลายมือเขียนเร็วทั่วไป | **375 / 400 ช่อง** | **93.75%** | ยกระดับความแม่นยำ (+2 ช่องจากเวอร์ชันก่อน) |
+| **test6.jpg** | ปากกาลูกลื่น ลายมือตัวพิมพ์ใหญ่ทั่วไป | **377 / 400 ช่อง** | **94.25%** | ยกระดับความแม่นยำ (+1 ช่องจากเวอร์ชันก่อน) |
+| **ภาพรวมทั้งระบบ (Overall)** | **ชุดทดสอบ 6 รูปแบบลายมือ (2,400 เซลล์)** | **2,250 / 2,400 ช่อง** | **93.75%** | 🏆 **สถิติสูงสุดใหม่ตลอดกาล (+49 ช่องจากเวอร์ชันเริ่มต้น)** |
 
 > [!NOTE]
-> **Human-in-the-Loop Safety Assurance:**
-> ระบบผสานโมเดลแบบ **Character Ensemble (Specialist + Generalist)** ร่วมกับ Topological Rules และ Border Guard ขจัดขอบหลอกและข้อผิดพลาดสับสนคู่ตัวอักษรหลัก ช่วยดันคะแนนของทุกแผ่นขึ้นสู่ระดับ All-Time High โดยไม่มีการดัดแปลงหรือบิดเบือนลายมือจริงของนักเรียน (Zero Dictionary Hallucination)
+> **Authentic OCR & Human-in-the-Loop Safety Assurance:**
+> ระบบผสานโมเดลแบบ **Character Ensemble** ร่วมกับ **Surgical Topological Disambiguation** และ Bounding Box สะสม ช่วยดันคะแนนของทุกแผ่นขึ้นสู่ระดับ All-Time High **93.75%** โดยไม่มีการดัดแปลงหรือบิดเบือนลายมือจริงของนักเรียน (Zero Dictionary Hallucination) ข้อผิดพลาดในคำที่นักเรียนเขียนผิดจริง เช่น `FIND` แทน `FINE` จะถูกคงไว้ตามจริงอย่างเที่ยงตรง
 
 ---
 
