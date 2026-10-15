@@ -13,7 +13,7 @@
     {
       "col": 2,
       "character": "I",
-      "confidence": 0.926
+      "confidence": 0.468
     },
     {
       "col": 3,
@@ -22,8 +22,8 @@
     },
     {
       "col": 4,
-      "character": "U",
-      "confidence": 0.94
+      "character": "Q",
+      "confidence": 0.501
     },
     {
       "col": 5,
@@ -33,12 +33,12 @@
     {
       "col": 6,
       "character": "I",
-      "confidence": 0.988
+      "confidence": 0.901
     },
     {
       "col": 7,
       "character": "C",
-      "confidence": 1.0
+      "confidence": 0.99
     },
     {
       "col": 8,
@@ -52,8 +52,8 @@
     },
     {
       "col": 10,
-      "character": "P",
-      "confidence": 0.793
+      "character": "D",
+      "confidence": 0.472
     },
     {
       "col": 11,
@@ -88,7 +88,7 @@
     {
       "col": 17,
       "character": "C",
-      "confidence": 1.0
+      "confidence": 0.995
     },
     {
       "col": 18,
@@ -114,13 +114,13 @@
     },
     {
       "col": 2,
-      "character": "G",
-      "confidence": 0.997
+      "character": "M",
+      "confidence": 0.502
     },
     {
       "col": 3,
       "character": "P",
-      "confidence": 0.543
+      "confidence": 0.692
     },
     {
       "col": 4,
@@ -150,7 +150,7 @@
     {
       "col": 9,
       "character": "R",
-      "confidence": 1.0
+      "confidence": 0.89
     },
     {
       "col": 10,
@@ -175,7 +175,7 @@
     {
       "col": 14,
       "character": "Y",
-      "confidence": 1.0
+      "confidence": 0.983
     },
     {
       "col": 15,
@@ -185,12 +185,12 @@
     {
       "col": 16,
       "character": "C",
-      "confidence": 0.838
+      "confidence": 0.455
     },
     {
       "col": 17,
-      "character": "O",
-      "confidence": 0.657
+      "character": "Q",
+      "confidence": 0.5
     },
     {
       "col": 18,
@@ -217,7 +217,7 @@
     {
       "col": 2,
       "character": "C",
-      "confidence": 0.997
+      "confidence": 0.999
     },
     {
       "col": 3,
@@ -237,7 +237,7 @@
     {
       "col": 6,
       "character": "V",
-      "confidence": 0.91
+      "confidence": 0.95
     },
     {
       "col": 7,
@@ -246,8 +246,8 @@
     },
     {
       "col": 8,
-      "character": "C",
-      "confidence": 0.908
+      "character": "G",
+      "confidence": 0.519
     },
     {
       "col": 9,
@@ -277,7 +277,7 @@
     {
       "col": 14,
       "character": "T",
-      "confidence": 0.999
+      "confidence": 1.0
     },
     {
       "col": 15,
@@ -309,12 +309,12 @@
     {
       "col": 0,
       "character": "E",
-      "confidence": 0.76
+      "confidence": 0.879
     },
     {
       "col": 1,
       "character": "I",
-      "confidence": 0.542
+      "confidence": 0.727
     },
     {
       "col": 2,
@@ -323,8 +323,8 @@
     },
     {
       "col": 3,
-      "character": "F",
-      "confidence": 1.0
+      "character": "E",
+      "confidence": 0.85
     },
     {
       "col": 4,
@@ -334,7 +334,7 @@
     {
       "col": 5,
       "character": "E",
-      "confidence": 0.802
+      "confidence": 0.881
     },
     {
       "col": 6,
@@ -349,7 +349,7 @@
     {
       "col": 8,
       "character": "F",
-      "confidence": 0.999
+      "confidence": 1.0
     },
     {
       "col": 9,
@@ -359,7 +359,7 @@
     {
       "col": 10,
       "character": "W",
-      "confidence": 0.997
+      "confidence": 0.501
     },
     {
       "col": 11,
@@ -369,7 +369,7 @@
     {
       "col": 12,
       "character": "I",
-      "confidence": 0.998
+      "confidence": 0.997
     },
     {
       "col": 13,
@@ -384,7 +384,7 @@
     {
       "col": 15,
       "character": "Q",
-      "confidence": 0.978
+      "confidence": 0.979
     },
     {
       "col": 16,
@@ -399,19 +399,19 @@
     {
       "col": 18,
       "character": "J",
-      "confidence": 0.997
+      "confidence": 0.999
     },
     {
       "col": 19,
       "character": "D",
-      "confidence": 0.531
+      "confidence": 0.745
     }
   ],
   "5": [
     {
       "col": 0,
-      "character": "G",
-      "confidence": 0.718
+      "character": "S",
+      "confidence": 0.64
     },
     {
       "col": 1,
@@ -426,7 +426,7 @@
     {
       "col": 3,
       "character": "L",
-      "confidence": 0.558
+      "confidence": 0.772
     },
     {
       "col": 4,
@@ -446,7 +446,7 @@
     {
       "col": 7,
       "character": "C",
-      "confidence": 0.721
+      "confidence": 0.66
     },
     {
       "col": 8,
@@ -513,7 +513,7 @@
     {
       "col": 0,
       "character": "J",
-      "confidence": 1.0
+      "confidence": 0.613
     },
     {
       "col": 1,
@@ -533,7 +533,7 @@
     {
       "col": 4,
       "character": "E",
-      "confidence": 0.988
+      "confidence": 0.884
     },
     {
       "col": 5,
@@ -543,7 +543,7 @@
     {
       "col": 6,
       "character": "M",
-      "confidence": 0.701
+      "confidence": 0.44
     },
     {
       "col": 7,
@@ -578,7 +578,7 @@
     {
       "col": 13,
       "character": "Q",
-      "confidence": 0.869
+      "confidence": 0.934
     },
     {
       "col": 14,
@@ -603,7 +603,7 @@
     {
       "col": 18,
       "character": "L",
-      "confidence": 1.0
+      "confidence": 0.9
     },
     {
       "col": 19,
@@ -624,8 +624,8 @@
     },
     {
       "col": 2,
-      "character": "J",
-      "confidence": 0.989
+      "character": "I",
+      "confidence": 0.95
     },
     {
       "col": 3,
@@ -640,7 +640,7 @@
     {
       "col": 5,
       "character": "T",
-      "confidence": 0.995
+      "confidence": 0.997
     },
     {
       "col": 6,
@@ -689,8 +689,8 @@
     },
     {
       "col": 15,
-      "character": "B",
-      "confidence": 0.9
+      "character": "R",
+      "confidence": 0.85
     },
     {
       "col": 16,
@@ -705,7 +705,7 @@
     {
       "col": 18,
       "character": "L",
-      "confidence": 0.998
+      "confidence": 0.499
     },
     {
       "col": 19,
@@ -797,7 +797,7 @@
     {
       "col": 16,
       "character": "T",
-      "confidence": 0.998
+      "confidence": 0.999
     },
     {
       "col": 17,
@@ -811,15 +811,15 @@
     },
     {
       "col": 19,
-      "character": "E",
-      "confidence": 0.889
+      "character": "N",
+      "confidence": 0.46
     }
   ],
   "9": [
     {
       "col": 0,
       "character": "M",
-      "confidence": 0.949
+      "confidence": 0.974
     },
     {
       "col": 1,
@@ -858,8 +858,8 @@
     },
     {
       "col": 8,
-      "character": "L",
-      "confidence": 0.999
+      "character": "U",
+      "confidence": 0.5
     },
     {
       "col": 9,
@@ -873,8 +873,8 @@
     },
     {
       "col": 11,
-      "character": "N",
-      "confidence": 0.504
+      "character": "M",
+      "confidence": 0.446
     },
     {
       "col": 12,
@@ -909,7 +909,7 @@
     {
       "col": 18,
       "character": "J",
-      "confidence": 1.0
+      "confidence": 0.986
     },
     {
       "col": 19,
@@ -921,12 +921,12 @@
     {
       "col": 0,
       "character": "D",
-      "confidence": 0.97
+      "confidence": 0.94
     },
     {
       "col": 1,
-      "character": "F",
-      "confidence": 1.0
+      "character": "E",
+      "confidence": 0.85
     },
     {
       "col": 2,
@@ -950,8 +950,8 @@
     },
     {
       "col": 6,
-      "character": "E",
-      "confidence": 0.998
+      "character": "F",
+      "confidence": 0.501
     },
     {
       "col": 7,
@@ -961,7 +961,7 @@
     {
       "col": 8,
       "character": "P",
-      "confidence": 0.548
+      "confidence": 0.772
     },
     {
       "col": 9,
@@ -980,28 +980,28 @@
     },
     {
       "col": 12,
-      "character": "A",
-      "confidence": 0.689
+      "character": "N",
+      "confidence": 0.655
     },
     {
       "col": 13,
       "character": "F",
-      "confidence": 1.0
+      "confidence": 0.997
     },
     {
       "col": 14,
       "character": "T",
-      "confidence": 1.0
+      "confidence": 0.712
     },
     {
       "col": 15,
-      "character": "V",
-      "confidence": 0.987
+      "character": "W",
+      "confidence": 0.506
     },
     {
       "col": 16,
       "character": "O",
-      "confidence": 1.0
+      "confidence": 0.508
     },
     {
       "col": 17,
@@ -1011,12 +1011,12 @@
     {
       "col": 18,
       "character": "K",
-      "confidence": 0.994
+      "confidence": 0.997
     },
     {
       "col": 19,
       "character": "X",
-      "confidence": 1.0
+      "confidence": 0.988
     }
   ],
   "11": [
@@ -1038,12 +1038,12 @@
     {
       "col": 3,
       "character": "G",
-      "confidence": 0.999
+      "confidence": 0.584
     },
     {
       "col": 4,
-      "character": "F",
-      "confidence": 0.998
+      "character": "E",
+      "confidence": 0.501
     },
     {
       "col": 5,
@@ -1053,7 +1053,7 @@
     {
       "col": 6,
       "character": "O",
-      "confidence": 0.948
+      "confidence": 0.85
     },
     {
       "col": 7,
@@ -1078,22 +1078,22 @@
     {
       "col": 11,
       "character": "E",
-      "confidence": 0.793
+      "confidence": 0.853
     },
     {
       "col": 12,
       "character": "E",
-      "confidence": 1.0
+      "confidence": 0.732
     },
     {
       "col": 13,
       "character": "Z",
-      "confidence": 0.803
+      "confidence": 0.808
     },
     {
       "col": 14,
       "character": "F",
-      "confidence": 1.0
+      "confidence": 0.994
     },
     {
       "col": 15,
@@ -1117,8 +1117,8 @@
     },
     {
       "col": 19,
-      "character": "U",
-      "confidence": 0.467
+      "character": "K",
+      "confidence": 0.727
     }
   ],
   "12": [
@@ -1144,8 +1144,8 @@
     },
     {
       "col": 4,
-      "character": "G",
-      "confidence": 0.558
+      "character": "Q",
+      "confidence": 0.5
     },
     {
       "col": 5,
@@ -1215,7 +1215,7 @@
     {
       "col": 18,
       "character": "T",
-      "confidence": 0.999
+      "confidence": 1.0
     },
     {
       "col": 19,
@@ -1232,7 +1232,7 @@
     {
       "col": 1,
       "character": "F",
-      "confidence": 0.869
+      "confidence": 0.434
     },
     {
       "col": 2,
@@ -1247,7 +1247,7 @@
     {
       "col": 4,
       "character": "T",
-      "confidence": 0.739
+      "confidence": 0.869
     },
     {
       "col": 5,
@@ -1267,12 +1267,12 @@
     {
       "col": 8,
       "character": "R",
-      "confidence": 0.736
+      "confidence": 0.551
     },
     {
       "col": 9,
       "character": "X",
-      "confidence": 0.496
+      "confidence": 0.381
     },
     {
       "col": 10,
@@ -1292,7 +1292,7 @@
     {
       "col": 13,
       "character": "C",
-      "confidence": 0.999
+      "confidence": 0.964
     },
     {
       "col": 14,
@@ -1302,12 +1302,12 @@
     {
       "col": 15,
       "character": "W",
-      "confidence": 0.999
+      "confidence": 0.996
     },
     {
       "col": 16,
       "character": "I",
-      "confidence": 0.956
+      "confidence": 0.95
     },
     {
       "col": 17,
@@ -1317,7 +1317,7 @@
     {
       "col": 18,
       "character": "E",
-      "confidence": 0.998
+      "confidence": 0.85
     },
     {
       "col": 19,
@@ -1328,8 +1328,8 @@
   "14": [
     {
       "col": 0,
-      "character": "A",
-      "confidence": 0.829
+      "character": "-",
+      "confidence": 1.0
     },
     {
       "col": 1,
@@ -1358,13 +1358,13 @@
     },
     {
       "col": 6,
-      "character": "J",
-      "confidence": 0.971
+      "character": "I",
+      "confidence": 0.95
     },
     {
       "col": 7,
       "character": "F",
-      "confidence": 1.0
+      "confidence": 0.995
     },
     {
       "col": 8,
@@ -1393,8 +1393,8 @@
     },
     {
       "col": 13,
-      "character": "J",
-      "confidence": 1.0
+      "character": "I",
+      "confidence": 0.95
     },
     {
       "col": 14,
@@ -1404,7 +1404,7 @@
     {
       "col": 15,
       "character": "Z",
-      "confidence": 0.725
+      "confidence": 0.71
     },
     {
       "col": 16,
@@ -1413,13 +1413,13 @@
     },
     {
       "col": 17,
-      "character": "R",
-      "confidence": 0.766
+      "character": "Z",
+      "confidence": 0.503
     },
     {
       "col": 18,
-      "character": "A",
-      "confidence": 0.89
+      "character": "N",
+      "confidence": 0.555
     },
     {
       "col": 19,
@@ -1430,7 +1430,7 @@
   "15": [
     {
       "col": 0,
-      "character": "A",
+      "character": "-",
       "confidence": 1.0
     },
     {
@@ -1441,7 +1441,7 @@
     {
       "col": 2,
       "character": "T",
-      "confidence": 0.93
+      "confidence": 0.965
     },
     {
       "col": 3,
@@ -1465,8 +1465,8 @@
     },
     {
       "col": 7,
-      "character": "Z",
-      "confidence": 0.929
+      "character": "X",
+      "confidence": 0.533
     },
     {
       "col": 8,
@@ -1480,8 +1480,8 @@
     },
     {
       "col": 10,
-      "character": "X",
-      "confidence": 0.31
+      "character": "Y",
+      "confidence": 0.267
     },
     {
       "col": 11,
@@ -1500,13 +1500,13 @@
     },
     {
       "col": 14,
-      "character": "T",
-      "confidence": 0.761
+      "character": "-",
+      "confidence": 1.0
     },
     {
       "col": 15,
       "character": "E",
-      "confidence": 0.978
+      "confidence": 0.732
     },
     {
       "col": 16,
@@ -1521,12 +1521,12 @@
     {
       "col": 18,
       "character": "C",
-      "confidence": 0.56
+      "confidence": 0.78
     },
     {
       "col": 19,
-      "character": "U",
-      "confidence": 0.85
+      "character": "K",
+      "confidence": 0.613
     }
   ],
   "16": [
@@ -1543,7 +1543,7 @@
     {
       "col": 2,
       "character": "L",
-      "confidence": 0.997
+      "confidence": 0.998
     },
     {
       "col": 3,
@@ -1552,8 +1552,8 @@
     },
     {
       "col": 4,
-      "character": "G",
-      "confidence": 0.876
+      "character": "C",
+      "confidence": 0.561
     },
     {
       "col": 5,
@@ -1573,17 +1573,17 @@
     {
       "col": 8,
       "character": "F",
-      "confidence": 0.998
+      "confidence": 0.866
     },
     {
       "col": 9,
       "character": "L",
-      "confidence": 0.975
+      "confidence": 0.987
     },
     {
       "col": 10,
       "character": "D",
-      "confidence": 0.968
+      "confidence": 0.984
     },
     {
       "col": 11,
@@ -1593,12 +1593,12 @@
     {
       "col": 12,
       "character": "V",
-      "confidence": 0.967
+      "confidence": 0.483
     },
     {
       "col": 13,
-      "character": "F",
-      "confidence": 1.0
+      "character": "E",
+      "confidence": 0.85
     },
     {
       "col": 14,
@@ -1618,12 +1618,12 @@
     {
       "col": 17,
       "character": "M",
-      "confidence": 1.0
+      "confidence": 0.992
     },
     {
       "col": 18,
       "character": "E",
-      "confidence": 0.949
+      "confidence": 0.974
     },
     {
       "col": 19,
@@ -1640,12 +1640,12 @@
     {
       "col": 1,
       "character": "W",
-      "confidence": 1.0
+      "confidence": 0.895
     },
     {
       "col": 2,
       "character": "O",
-      "confidence": 1.0
+      "confidence": 0.8
     },
     {
       "col": 3,
@@ -1674,8 +1674,8 @@
     },
     {
       "col": 8,
-      "character": "E",
-      "confidence": 0.733
+      "character": "F",
+      "confidence": 0.63
     },
     {
       "col": 9,
@@ -1685,7 +1685,7 @@
     {
       "col": 10,
       "character": "I",
-      "confidence": 0.964
+      "confidence": 0.95
     },
     {
       "col": 11,
@@ -1704,13 +1704,13 @@
     },
     {
       "col": 14,
-      "character": "O",
-      "confidence": 0.769
+      "character": "Q",
+      "confidence": 0.472
     },
     {
       "col": 15,
       "character": "K",
-      "confidence": 0.981
+      "confidence": 0.517
     },
     {
       "col": 16,
@@ -1737,7 +1737,7 @@
     {
       "col": 0,
       "character": "F",
-      "confidence": 0.998
+      "confidence": 0.999
     },
     {
       "col": 1,
@@ -1762,7 +1762,7 @@
     {
       "col": 5,
       "character": "F",
-      "confidence": 0.986
+      "confidence": 0.666
     },
     {
       "col": 6,
@@ -1791,8 +1791,8 @@
     },
     {
       "col": 11,
-      "character": "G",
-      "confidence": 0.559
+      "character": "E",
+      "confidence": 0.493
     },
     {
       "col": 12,
@@ -1806,8 +1806,8 @@
     },
     {
       "col": 14,
-      "character": "F",
-      "confidence": 1.0
+      "character": "E",
+      "confidence": 0.85
     },
     {
       "col": 15,
@@ -1822,17 +1822,17 @@
     {
       "col": 17,
       "character": "D",
-      "confidence": 1.0
+      "confidence": 0.588
     },
     {
       "col": 18,
       "character": "L",
-      "confidence": 0.991
+      "confidence": 0.995
     },
     {
       "col": 19,
       "character": "C",
-      "confidence": 0.998
+      "confidence": 0.5
     }
   ],
   "19": [
@@ -1844,7 +1844,7 @@
     {
       "col": 1,
       "character": "J",
-      "confidence": 1.0
+      "confidence": 0.521
     },
     {
       "col": 2,
@@ -1853,8 +1853,8 @@
     },
     {
       "col": 3,
-      "character": "G",
-      "confidence": 0.822
+      "character": "Q",
+      "confidence": 0.563
     },
     {
       "col": 4,
@@ -1863,8 +1863,8 @@
     },
     {
       "col": 5,
-      "character": "N",
-      "confidence": 0.404
+      "character": "O",
+      "confidence": 0.556
     },
     {
       "col": 6,
@@ -1874,7 +1874,7 @@
     {
       "col": 7,
       "character": "E",
-      "confidence": 1.0
+      "confidence": 0.853
     },
     {
       "col": 8,
@@ -1889,12 +1889,12 @@
     {
       "col": 10,
       "character": "X",
-      "confidence": 0.997
+      "confidence": 0.499
     },
     {
       "col": 11,
       "character": "G",
-      "confidence": 1.0
+      "confidence": 0.969
     },
     {
       "col": 12,
@@ -1924,7 +1924,7 @@
     {
       "col": 17,
       "character": "T",
-      "confidence": 1.0
+      "confidence": 0.998
     },
     {
       "col": 18,
@@ -1934,7 +1934,7 @@
     {
       "col": 19,
       "character": "N",
-      "confidence": 1.0
+      "confidence": 0.576
     }
   ],
   "20": [
@@ -1956,7 +1956,7 @@
     {
       "col": 3,
       "character": "D",
-      "confidence": 0.97
+      "confidence": 0.985
     },
     {
       "col": 4,
@@ -1971,7 +1971,7 @@
     {
       "col": 6,
       "character": "G",
-      "confidence": 0.977
+      "confidence": 0.989
     },
     {
       "col": 7,
@@ -1981,7 +1981,7 @@
     {
       "col": 8,
       "character": "I",
-      "confidence": 0.997
+      "confidence": 0.95
     },
     {
       "col": 9,
@@ -2001,7 +2001,7 @@
     {
       "col": 12,
       "character": "M",
-      "confidence": 0.907
+      "confidence": 0.665
     },
     {
       "col": 13,
@@ -2010,33 +2010,33 @@
     },
     {
       "col": 14,
-      "character": "O",
-      "confidence": 1.0
+      "character": "C",
+      "confidence": 0.5
     },
     {
       "col": 15,
       "character": "P",
-      "confidence": 0.972
+      "confidence": 0.489
     },
     {
       "col": 16,
       "character": "G",
-      "confidence": 1.0
+      "confidence": 0.913
     },
     {
       "col": 17,
-      "character": "E",
-      "confidence": 1.0
+      "character": "R",
+      "confidence": 0.85
     },
     {
       "col": 18,
       "character": "O",
-      "confidence": 0.984
+      "confidence": 0.492
     },
     {
       "col": 19,
       "character": "T",
-      "confidence": 1.0
+      "confidence": 0.986
     }
   ]
 }

@@ -24,9 +24,12 @@ outputs/visuals/debug_*.jpg
 outputs/visuals/sample_*.jpg
 outputs/*.png
 models/*backup*
+models/*_v*.pkl
 
 # Heavy external datasets
 emnist_data/
+A-Z Handwritten Alphabets in CSV Format/
+*.csv
 
 # Scratch & experimental tests
 scratch/

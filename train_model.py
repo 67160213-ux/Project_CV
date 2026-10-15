@@ -4,6 +4,7 @@ import os
 import glob
 import joblib
 import string
+import shutil
 from tqdm import tqdm
 from sklearn.model_selection import train_test_split
 from sklearn.neural_network import MLPClassifier
@@ -23,6 +24,7 @@ MODEL_DIR = os.path.join(BASE_DIR, "models")
 MODEL_FILE = os.path.join(MODEL_DIR, "char_classifier.pkl")
 INPUT_DIR = os.path.join(BASE_DIR, "input_images")
 EMNIST_CSV_PATH = os.path.join(BASE_DIR, "emnist_data", "emnist-byclass-train.csv")
+AZ_CSV_PATH = os.path.join(BASE_DIR, "A-Z Handwritten Alphabets in CSV Format", "A_Z Handwritten Data.csv")
 
 os.makedirs(MODEL_DIR, exist_ok=True)
 
@@ -156,6 +158,9 @@ def load_emnist_from_csv(csv_path=EMNIST_CSV_PATH, samples_per_class=500):
     counts = {i: 0 for i in range(10, 36)}
     ascii_map = {10 + i: char for i, char in enumerate(string.ascii_uppercase)}
 
+    k_thin_v = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 2))
+    k_thin_h = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 1))
+
     X_emnist, y_emnist = [], []
     pbar_emnist = tqdm(total=target_total, desc="โหลด EMNIST A-Z", unit="ตัวอย่าง")
 
@@ -178,43 +183,128 @@ def load_emnist_from_csv(csv_path=EMNIST_CSV_PATH, samples_per_class=500):
 
                 X_emnist.append(comb_feat)
                 y_emnist.append(ascii_map[lbl])
+
+                # 4. จำลองลายมือดินสอเส้นบาง (Thin Pencil Stroke Simulation ด้วย Erosion)
+                k_thin = k_thin_v if counts[lbl] % 2 == 0 else k_thin_h
+                eroded = cv2.erode(pix_28, k_thin, iterations=1)
+                if np.count_nonzero(eroded) > 20:
+                    aligned_er = align_centroid(eroded)
+                    pix_feat_er = aligned_er.flatten() / 255.0
+                    hog_feat_er = compute_hog_28(aligned_er)
+                    X_emnist.append(np.hstack([pix_feat_er, hog_feat_er]).astype(np.float32))
+                    y_emnist.append(ascii_map[lbl])
+
                 counts[lbl] += 1
                 pbar_emnist.update(1)
 
-                if len(X_emnist) == target_total:
+                if len(counts) == 26 and all(v >= samples_per_class for v in counts.values()):
                     break
 
     pbar_emnist.close()
-    print(f"[EMNIST] โหลดเสร็จสิ้น: รวม {len(X_emnist):,} ตัวอย่าง ({samples_per_class} ตัวอย่าง/ตัวอักษร)")
+    print(f"[EMNIST] โหลดเสร็จสิ้น: รวม {len(X_emnist):,} ตัวอย่าง (รวมจำลองเส้นดินสอ)")
     return X_emnist, y_emnist
 
-def train_and_save():
+def load_az_from_csv(csv_path=AZ_CSV_PATH, samples_per_class=500):
+    """
+    ดึงข้อมูลตัวพิมพ์ใหญ่ A-Z จาก Kaggle A-Z Handwritten Alphabets CSV
+    (Label 0-25 -> 'A'-'Z', ไม่ต้อง Transpose เนื่องจากเป็น Row-major อยู่แล้ว)
+    พร้อมทำ Centroid Alignment, สกัด Hybrid Features 1,176 มิติ
+    และจำลองเส้นดินสอจางด้วย Erosion Augmentation
+    """
+    if not os.path.exists(csv_path):
+        print(f"[A-Z Dataset] ไม่พบไฟล์ {csv_path} -> ข้ามการโหลด A-Z Dataset")
+        return [], []
+
+    print(f"\n[A-Z Dataset] กำลังโหลดตัวอักษร A-Z จาก Kaggle CSV (เป้าหมาย: {samples_per_class} ตัวอย่าง/ตัวอักษร)...")
+    target_total = 26 * samples_per_class
+    counts = {i: 0 for i in range(26)}
+    ascii_map = {i: char for i, char in enumerate(string.ascii_uppercase)}
+
+    k_thin_v = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 2))
+    k_thin_h = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 1))
+
+    X_az, y_az = [], []
+    pbar_az = tqdm(total=target_total, desc="โหลด A-Z Alphabets", unit="ตัวอย่าง")
+
+    with open(csv_path, "r", encoding="utf-8") as f:
+        for line in f:
+            lbl_str, pixel_str = line.split(",", 1)
+            lbl = int(lbl_str)
+
+            if 0 <= lbl <= 25 and counts[lbl] < samples_per_class:
+                # 1. แปลงเป็นภาพ 28x28 (ภาพตั้งตรงอยู่แล้ว ไม่ต้อง .T)
+                pix_28 = np.fromstring(pixel_str, dtype=np.uint8, sep=",").reshape(28, 28)
+
+                # 2. จัดกึ่งกลางมวลหมึกด้วย Image Moments มาที่พิกัด (14, 14)
+                aligned = align_centroid(pix_28)
+
+                # 3. สกัด Hybrid Features 1,176 มิติ (Raw Pixels 784 + HOG 392)
+                pix_feat = aligned.flatten() / 255.0
+                hog_feat = compute_hog_28(aligned)
+                comb_feat = np.hstack([pix_feat, hog_feat]).astype(np.float32)
+
+                X_az.append(comb_feat)
+                y_az.append(ascii_map[lbl])
+
+                # 4. จำลองลายมือดินสอเส้นบาง (Thin Pencil Stroke Simulation ด้วย Erosion)
+                k_thin = k_thin_v if counts[lbl] % 2 == 0 else k_thin_h
+                eroded = cv2.erode(pix_28, k_thin, iterations=1)
+                if np.count_nonzero(eroded) > 20:
+                    aligned_er = align_centroid(eroded)
+                    pix_feat_er = aligned_er.flatten() / 255.0
+                    hog_feat_er = compute_hog_28(aligned_er)
+                    X_az.append(np.hstack([pix_feat_er, hog_feat_er]).astype(np.float32))
+                    y_az.append(ascii_map[lbl])
+
+                counts[lbl] += 1
+                pbar_az.update(1)
+
+                if len(counts) == 26 and all(v >= samples_per_class for v in counts.values()):
+                    break
+
+    pbar_az.close()
+    print(f"[A-Z Dataset] โหลดเสร็จสิ้น: รวม {len(X_az):,} ตัวอย่าง (รวมจำลองเส้นดินสอ)")
+    return X_az, y_az
+
+def train_and_save(emnist_samples_per_class=500, az_samples_per_class=500):
     image_paths = sorted(glob.glob(os.path.join(INPUT_DIR, "*.jpg")) + glob.glob(os.path.join(INPUT_DIR, "*.png")))
     if not image_paths:
         raise FileNotFoundError(f"ไม่พบไฟล์รูปภาพในโฟลเดอร์ {INPUT_DIR}")
 
     print("=" * 65)
     print(f" เริ่มต้นกระบวนการฝึกสอนโมเดล (Hybrid Pixels + HOG + Centroid Alignment)")
-    print(f" ประมวลผลจากกระดาษคำตอบ: {len(image_paths)} ภาพ (มิติ Feature: {FEATURE_DIM} มิติ)")
+    print(f" ข้อมูลกระดาษคำตอบต้นฉบับ: {len(image_paths)} ภาพ (มิติ Feature: {FEATURE_DIM} มิติ)")
     print("=" * 65)
 
     X_sheet, y_sheet = build_dataset_from_images(image_paths)
 
-    # ดึงข้อมูลตัวอักษรลายมือเพิ่มเติมจาก EMNIST (ตัวละ 500 ภาพ = 13,000 ตัวอย่าง)
-    X_emnist, y_emnist = load_emnist_from_csv(EMNIST_CSV_PATH, samples_per_class=500)
+    # 1. ดึงข้อมูลเสริมจาก EMNIST (NIST Database)
+    X_emnist, y_emnist = load_emnist_from_csv(EMNIST_CSV_PATH, samples_per_class=emnist_samples_per_class)
+
+    # 2. ดึงข้อมูลเสริมจาก Kaggle A-Z Handwritten Alphabets
+    X_az, y_az = load_az_from_csv(AZ_CSV_PATH, samples_per_class=az_samples_per_class)
+
+    # รวมชุดข้อมูลทุกแหล่งเข้าด้วยกัน
+    X_all = [X_sheet]
+    y_all = [y_sheet]
 
     if len(X_emnist) > 0:
-        print("\nกำลังผสานชุดข้อมูลกระดาษคำตอบกับ EMNIST...")
-        X = np.vstack([X_sheet, np.array(X_emnist, dtype=np.float32)])
-        y = np.concatenate([y_sheet, np.array(y_emnist)])
-    else:
-        X, y = X_sheet, y_sheet
+        X_all.append(np.array(X_emnist, dtype=np.float32))
+        y_all.append(np.array(y_emnist))
+
+    if len(X_az) > 0:
+        X_all.append(np.array(X_az, dtype=np.float32))
+        y_all.append(np.array(y_az))
+
+    X = np.vstack(X_all)
+    y = np.concatenate(y_all)
 
     classes = np.unique(y)
     print(f"\nสรุปข้อมูลชุดฝึกสอนรวม:")
-    print(f" - ข้อมูลจากกระดาษคำตอบ: {len(X_sheet):,} ตัวอย่าง")
-    print(f" - ข้อมูลเสริมจาก EMNIST: {len(X_emnist):,} ตัวอย่าง")
-    print(f" - จำนวนตัวอย่างทั้งหมด: {len(X):,} ตัวอย่าง")
+    print(f" - ข้อมูลจากกระดาษคำตอบ (78 แผ่น + Augmentation): {len(X_sheet):,} ตัวอย่าง")
+    print(f" - ข้อมูลเสริมจาก EMNIST (NIST): {len(X_emnist):,} ตัวอย่าง")
+    print(f" - ข้อมูลเสริมจาก Kaggle A-Z Alphabets: {len(X_az):,} ตัวอย่าง")
+    print(f" - จำนวนตัวอย่างทั้งหมดในโมเดล: {len(X):,} ตัวอย่าง")
     print(f" - มิติเวกเตอร์ (Features): {X.shape[1]} มิติ (784 Pixels + 392 HOG)")
     print(f" - จำนวนคลาสที่เรียนรู้: {len(classes)} คลาส ({', '.join(classes)})")
 
@@ -252,8 +342,14 @@ def train_and_save():
     print(f" ความแม่นยำชุดฝึกสอน (Train Accuracy): {train_acc * 100:.2f}%")
     print(f" ความแม่นยำชุดทดสอบ  (Test Accuracy):  {test_acc * 100:.2f}%")
 
+    # Safety Backup ก่อนบันทึกทับโมเดลเดิม
+    if os.path.exists(MODEL_FILE):
+        backup_file = os.path.join(MODEL_DIR, "char_classifier_backup.pkl")
+        shutil.copy2(MODEL_FILE, backup_file)
+        print(f"\n[Safety Backup] สำรองโมเดลเดิมไว้ที่: {backup_file}")
+
     joblib.dump(clf, MODEL_FILE)
-    print(f"\nบันทึกไฟล์โมเดลเสร็จสมบูรณ์ที่: {MODEL_FILE}")
+    print(f"บันทึกไฟล์โมเดลเสร็จสมบูรณ์ที่: {MODEL_FILE}")
     print("=" * 65)
 
 if __name__ == "__main__":

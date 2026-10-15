@@ -12,6 +12,27 @@ OUTPUT_RESULTS_DIR = os.path.join(BASE_DIR, "outputs", "results")
 os.makedirs(OUTPUT_VISUALS_DIR, exist_ok=True)
 os.makedirs(OUTPUT_RESULTS_DIR, exist_ok=True)
 
+class CharacterEnsembleClassifier:
+    """
+    Ensemble Classifier combining Student-Sheet Specialist (v1) and
+    Generalization Specialist (v3) with weighted probability blending.
+    """
+    def __init__(self, clf1, clf2, w1=0.5, w2=0.5):
+        self.clf1 = clf1
+        self.clf2 = clf2
+        self.w1 = w1
+        self.w2 = w2
+        self.classes_ = clf1.classes_
+        
+    def predict_proba(self, X):
+        p1 = self.clf1.predict_proba(X)
+        p2 = self.clf2.predict_proba(X)
+        return self.w1 * p1 + self.w2 * p2
+        
+    def predict(self, X):
+        probs = self.predict_proba(X)
+        return self.classes_[np.argmax(probs, axis=1)]
+
 def load_classifier():
     if not os.path.exists(MODEL_PATH):
         raise FileNotFoundError(f"Classifier not found at {MODEL_PATH}. Run train_model.py first.")
@@ -161,8 +182,12 @@ def extract_character_features(cell_bgr, return_crop=False, return_meta=False):
             bw >= cw - 5 and (by <= 1 or by + bh >= ch - 1) and
             (bw / max(bh, 1) >= 2.8)
         )
+        is_hollow_box = (
+            bw >= cw - 8 and bh >= ch - 8 and (by <= 2 or by + bh >= ch - 2) and
+            (area / float(bw * bh) < 0.25)
+        )
         
-        if is_vertical_border or is_horizontal_border:
+        if is_vertical_border or is_horizontal_border or is_hollow_box:
             continue
             
         # Filter micro-noise dots
@@ -185,8 +210,8 @@ def extract_character_features(cell_bgr, return_crop=False, return_meta=False):
         dist_x = max(0, bx - (p_x + p_w), p_x - (bx + bw))
         dist_y = max(0, by - (p_y + p_h), p_y - (by + bh))
         
-        # Prevent merging border line remnants close to the outer cell edges
-        if (bx <= 3 or bx + bw >= cw - 3) and (bh / max(bw, 1) >= 2.5):
+        # Prevent merging border line remnants close to the outer cell edges (5px margin)
+        if (bx <= 5 or bx + bw >= cw - 5) and (bh / max(bw, 1) >= 2.5):
             continue
 
         # A stroke belongs to the same character if it is within typical character span
@@ -343,9 +368,9 @@ def scan_sheet(image_path, save_annotated=True):
                         bot_row = char_crop[-3:, :]
                         bot_row_w = np.sum(np.any(bot_row > 0, axis=0))
                         bot_ratio = bot_row_w / max(bw_c, 1)
-                        # An 'R' only touches the bottom with a narrow diagonal leg tip (< 0.45)
-                        # A true 'B' touches the bottom with a wide loop base (>= 0.50)
-                        if bot_ratio < 0.45:
+                        # An 'R' touches the bottom with a diagonal leg tip (<= 0.52)
+                        # A true 'B' touches the bottom with a wide loop base (> 0.52)
+                        if bot_ratio <= 0.52:
                             prob_r = float(probs[classes_list.index("R")])
                             pred_label = "R"
                             confidence = max(prob_r, 0.85)
@@ -407,7 +432,31 @@ def scan_sheet(image_path, save_annotated=True):
                         pred_label = "U"
                         confidence = max(prob_u, 0.85)
 
-                # 5. Topological Guard for 'I':
+                # 5. J vs I: Bottom-left upward hook detection
+                # A true 'J' curves upwards to the left at the bottom (two peaks in hook zone or strong left overhang).
+                # If predicted as 'J', but lacks an upward hook and has symmetrical serif overhang or small left reach, it is 'I'.
+                if pred_label == "J" and char_crop is not None and "I" in classes_list:
+                    bh_c, bw_c = char_crop.shape[:2]
+                    hook_zone = char_crop[int(bh_c * 0.55):int(bh_c * 0.85), :]
+                    has_two_peaks = False
+                    for r_z in range(hook_zone.shape[0]):
+                        row_pixels = (hook_zone[r_z] > 0).astype(np.int32)
+                        diffs = np.diff(np.pad(row_pixels, (1, 1)))
+                        if len(np.where(diffs == 1)[0]) >= 2:
+                            has_two_peaks = True
+                            break
+                    stem_cols = np.where(np.any(char_crop[int(bh_c * 0.35):int(bh_c * 0.65), :] > 0, axis=0))[0]
+                    bot_cols = np.where(np.any(char_crop[int(bh_c * 0.70):, :] > 0, axis=0))[0]
+                    top_cols = np.where(np.any(char_crop[:int(bh_c * 0.30), :] > 0, axis=0))[0]
+                    left_overhang = (stem_cols[0] - bot_cols[0]) if (len(stem_cols) > 0 and len(bot_cols) > 0) else 0
+                    top_overhang = (stem_cols[0] - top_cols[0]) if (len(stem_cols) > 0 and len(top_cols) > 0) else 0
+                    
+                    if not has_two_peaks:
+                        if left_overhang < 6 or (top_overhang >= 4 and abs(left_overhang - top_overhang) <= 2):
+                            pred_label = "I"
+                            confidence = 0.95
+
+                # 6. Topological Guard for 'I':
                 # Tall thin vertical stroke centered in the cell (not touching cell borders)
                 if char_crop is not None and stroke_meta is not None:
                     s_x0 = stroke_meta["x0"]
