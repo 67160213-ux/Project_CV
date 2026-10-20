@@ -30,6 +30,7 @@ models/*_v*.pkl
 emnist_data/
 A-Z Handwritten Alphabets in CSV Format/
 *.csv
+!outputs/logs/*.csv
 
 # Scratch & experimental tests
 scratch/

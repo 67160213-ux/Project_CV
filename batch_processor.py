@@ -1,8 +1,13 @@
 import os
+import re
 import glob
 import pandas as pd
 from tqdm import tqdm
 from scan_and_predict import scan_sheet
+
+def natural_sort_key(s):
+    """เรียงลำดับสตริงตามตัวเลขแบบธรรมชาติ เช่น test1 -> test2 -> ... -> test10"""
+    return tuple(int(text) if text.isdigit() else text.lower() for text in re.split(r'(\d+)', str(s)))
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TRAIN_DIR = os.path.join(BASE_DIR, "input_images")
@@ -10,12 +15,17 @@ TEST_DIR = os.path.join(BASE_DIR, "test_image")
 INPUT_DIR = TEST_DIR  # ดึงภาพทดสอบจาก test_image เป็นค่าเริ่มต้น
 OUTPUT_EXCEL = os.path.join(BASE_DIR, "outputs", "results", "all_results.xlsx")
 
-def export_styled_excel(df, output_excel):
+def export_styled_excel(df, output_excel, model_name="Dual-Ensemble (93.94%)"):
     """Exports results with professional styling: Dashboard sheet + Styled Detailed sheet"""
     import openpyxl
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
     import datetime
+
+    if not df.empty:
+        # จัดเรียงตามลำดับชื่อไฟล์ธรรมชาติ (test1 -> test2 -> ... -> test10) และตามเลขข้อ 1..20
+        sorted_indices = sorted(range(len(df)), key=lambda i: (natural_sort_key(df.iloc[i]["Image_Name"]), int(df.iloc[i]["Question"])))
+        df = df.iloc[sorted_indices].reset_index(drop=True)
 
     wb = openpyxl.Workbook()
     wb.remove(wb.active)  # remove default blank sheet
@@ -33,7 +43,7 @@ def export_styled_excel(df, output_excel):
     t_cell.alignment = Alignment(horizontal="center", vertical="center")
 
     now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    ws_dash["A3"].value = f"สร้างรายงานเมื่อ: {now_str} | ตรวจทั้งหมด: {df['Image_Name'].nunique()} แผ่น | รวม {len(df)} ข้อ"
+    ws_dash["A3"].value = f"สร้างรายงานเมื่อ: {now_str} | โมเดลที่ใช้ตรวจ: {model_name} | ตรวจทั้งหมด: {df['Image_Name'].nunique()} แผ่น | รวม {len(df)} ข้อ"
     ws_dash["A3"].font = Font(name="Segoe UI", size=10, italic=True, color="595959")
 
     # Ground Truth Template: ชุดที่ 1 (ประโยคภาษาอังกฤษ & Tech 20 แถว x 20 ช่อง)
@@ -232,25 +242,35 @@ def export_styled_excel(df, output_excel):
     os.makedirs(os.path.dirname(output_excel), exist_ok=True)
     wb.save(output_excel)
 
-def run_batch(input_folder=INPUT_DIR, output_excel=OUTPUT_EXCEL):
+def run_batch(input_folder=INPUT_DIR, output_excel=OUTPUT_EXCEL, model_type="ensemble"):
     extensions = ("*.jpg", "*.jpeg", "*.png")
     image_paths = []
     for ext in extensions:
         image_paths.extend(glob.glob(os.path.join(input_folder, ext)))
         
+    image_paths = sorted(image_paths, key=natural_sort_key)
     print(f"พบรูปภาพใน {input_folder} ทั้งหมด: {len(image_paths)} รูป")
     if not image_paths:
         print(f"ยังไม่มีภาพในโฟลเดอร์ {input_folder} ให้ประมวลผล")
         return
         
+    m_lower = model_type.lower()
+    if m_lower in ["super", "super_ensemble", "best"]:
+        model_display_name = "Super-Ensemble (MLP + CNN: 94.19%)"
+    elif m_lower == "cnn":
+        model_display_name = "Custom 2D CNN (CharCNN 93.78%)"
+    else:
+        model_display_name = "Dual-Ensemble MLP (93.94%)"
+    print(f"[*] โมเดลที่เลือกใช้งาน: {model_display_name}")
+
     all_records = []
     failed_images = []
     
     for img_path in tqdm(image_paths, desc="กำลังประมวลผล"):
         filename = os.path.basename(img_path)
         try:
-            # ประมวลผลแต่ละแผ่น (เซฟรูปผลลัพธ์ลง outputs/visuals/ อัตโนมัติ)
-            sheet_data = scan_sheet(img_path, save_annotated=True)
+            # ประมวลผลแต่ละแผ่นด้วยโมเดลที่เลือก (เซฟรูปผลลัพธ์ลง outputs/visuals/ อัตโนมัติ)
+            sheet_data = scan_sheet(img_path, save_annotated=True, model_type=model_type)
             
             for q_num, chars_info in sheet_data.items():
                 ans_str = "".join([c["character"] for c in chars_info])
@@ -271,7 +291,7 @@ def run_batch(input_folder=INPUT_DIR, output_excel=OUTPUT_EXCEL):
             failed_images.append({"Image": filename, "Error": str(e)})
             
     df = pd.DataFrame(all_records)
-    export_styled_excel(df, output_excel)
+    export_styled_excel(df, output_excel, model_name=model_display_name)
     print(f"\nประมวลผลเสร็จสิ้น! บันทึกไฟล์ Excel สรุปผลลัพธ์ที่: {output_excel}")
     
     if failed_images:
@@ -280,6 +300,12 @@ def run_batch(input_folder=INPUT_DIR, output_excel=OUTPUT_EXCEL):
             print(f" - {fail['Image']}: {fail['Error']}")
 
 if __name__ == "__main__":
-    import sys
-    target = sys.argv[1] if len(sys.argv) > 1 else INPUT_DIR
-    run_batch(input_folder=target)
+    import argparse
+    parser = argparse.ArgumentParser(description="Automated Answer Sheet Batch Processor")
+    parser.add_argument("input_folder", nargs="?", default=INPUT_DIR, help="Path to input images folder (default: test_image)")
+    parser.add_argument("--model", "-m", choices=["super", "ensemble", "cnn"], default="super",
+                        help="เลือกโมเดลที่ใช้ตรวจ: 'super' (Super-Ensemble 94.19%% [แนะนำสูงสุด]), 'ensemble' (Dual-Ensemble 93.94%%) หรือ 'cnn' (Custom 2D CNN 93.78%%) [Default: super]")
+    parser.add_argument("--output", "-o", default=OUTPUT_EXCEL, help="Path to output Excel file (default: outputs/results/all_results.xlsx)")
+
+    args = parser.parse_args()
+    run_batch(input_folder=args.input_folder, output_excel=args.output, model_type=args.model)

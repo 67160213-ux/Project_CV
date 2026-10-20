@@ -29,7 +29,22 @@ AZ_CSV_PATH = os.path.join(BASE_DIR, "A-Z Handwritten Alphabets in CSV Format", 
 os.makedirs(MODEL_DIR, exist_ok=True)
 
 BLANK_CHAR = "-"
-FEATURE_DIM = 784 + 392  # 784 Raw Pixels + 392 HOG Gradient Features = 1,176 Dimensions
+
+# =========================================================================
+# CONFIGURATIONS: สถาปัตยกรรมโมเดลและมิติคุณลักษณะ (Architecture & HOG Config)
+# =========================================================================
+# ตัวเลือก HOG_ORIENTATIONS: 
+#   8  -> 784 + 392 = 1,176 มิติ (โมเดลมาตรฐานเดิม เสถียรและเร็วที่สุด)
+#   9  -> 784 + 441 = 1,225 มิติ (ความละเอียดมุมเอียง 20 องศา)
+#   12 -> 784 + 588 = 1,372 มิติ (ความละเอียดมุมเอียง 15 องศา)
+HOG_ORIENTATIONS = 8
+
+# โครงสร้าง Hidden Layers ของ MLP:
+#   (512, 256, 128) -> โครงข่าย 3 ชั้นเชิงลึก (Deep Architecture) ตามแนวทาง A
+#   (384, 192)      -> โครงข่าย 2 ชั้นมาตรฐานเดิม
+HIDDEN_LAYERS = (512, 256, 128)
+
+FEATURE_DIM = 784 + (7 * 7 * HOG_ORIENTATIONS)
 
 def advanced_augment_sample(img_28):
     """
@@ -135,7 +150,7 @@ def build_dataset_from_images(image_paths):
                         for s in samples:
                             s_aligned = align_centroid(s)
                             pix_s = s_aligned.flatten() / 255.0
-                            hog_s = compute_hog_28(s_aligned)
+                            hog_s = compute_hog_28(s_aligned, orientations=HOG_ORIENTATIONS)
                             combined_s = np.hstack([pix_s, hog_s]).astype(np.float32)
                             X.append(combined_s)
                             y.append(label)
@@ -178,7 +193,7 @@ def load_emnist_from_csv(csv_path=EMNIST_CSV_PATH, samples_per_class=500):
 
                 # 3. สกัด Hybrid Features 1,176 มิติ (Raw Pixels 784 + HOG 392)
                 pix_feat = aligned.flatten() / 255.0
-                hog_feat = compute_hog_28(aligned)
+                hog_feat = compute_hog_28(aligned, orientations=HOG_ORIENTATIONS)
                 comb_feat = np.hstack([pix_feat, hog_feat]).astype(np.float32)
 
                 X_emnist.append(comb_feat)
@@ -190,7 +205,7 @@ def load_emnist_from_csv(csv_path=EMNIST_CSV_PATH, samples_per_class=500):
                 if np.count_nonzero(eroded) > 20:
                     aligned_er = align_centroid(eroded)
                     pix_feat_er = aligned_er.flatten() / 255.0
-                    hog_feat_er = compute_hog_28(aligned_er)
+                    hog_feat_er = compute_hog_28(aligned_er, orientations=HOG_ORIENTATIONS)
                     X_emnist.append(np.hstack([pix_feat_er, hog_feat_er]).astype(np.float32))
                     y_emnist.append(ascii_map[lbl])
 
@@ -240,7 +255,7 @@ def load_az_from_csv(csv_path=AZ_CSV_PATH, samples_per_class=500):
 
                 # 3. สกัด Hybrid Features 1,176 มิติ (Raw Pixels 784 + HOG 392)
                 pix_feat = aligned.flatten() / 255.0
-                hog_feat = compute_hog_28(aligned)
+                hog_feat = compute_hog_28(aligned, orientations=HOG_ORIENTATIONS)
                 comb_feat = np.hstack([pix_feat, hog_feat]).astype(np.float32)
 
                 X_az.append(comb_feat)
@@ -252,7 +267,7 @@ def load_az_from_csv(csv_path=AZ_CSV_PATH, samples_per_class=500):
                 if np.count_nonzero(eroded) > 20:
                     aligned_er = align_centroid(eroded)
                     pix_feat_er = aligned_er.flatten() / 255.0
-                    hog_feat_er = compute_hog_28(aligned_er)
+                    hog_feat_er = compute_hog_28(aligned_er, orientations=HOG_ORIENTATIONS)
                     X_az.append(np.hstack([pix_feat_er, hog_feat_er]).astype(np.float32))
                     y_az.append(ascii_map[lbl])
 
@@ -314,7 +329,7 @@ def train_and_save(emnist_samples_per_class=500, az_samples_per_class=500):
 
     print("\n[Step 2/2] กำลังฝึกสอนโครงข่ายประสาทเทียม (Training Neural Network)...")
     clf = MLPClassifier(
-        hidden_layer_sizes=(384, 192),
+        hidden_layer_sizes=HIDDEN_LAYERS,
         activation="relu",
         solver="adam",
         alpha=0.001,

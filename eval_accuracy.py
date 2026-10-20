@@ -1,7 +1,12 @@
 import json
 import os
+import re
 import glob
 import sys
+
+def natural_sort_key(s):
+    """เรียงลำดับสตริงตามตัวเลขแบบธรรมชาติ เช่น test1 -> test2 -> ... -> test10"""
+    return [int(text) if text.isdigit() else text.lower() for text in re.split(r'(\d+)', str(s))]
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 RESULTS_DIR = os.path.join(BASE_DIR, "outputs", "results")
@@ -121,7 +126,7 @@ def main():
             evaluate_file(target)
             return
             
-    json_files = sorted(glob.glob(os.path.join(RESULTS_DIR, "*_results.json")))
+    json_files = sorted(glob.glob(os.path.join(RESULTS_DIR, "*_results.json")), key=natural_sort_key)
     if not json_files:
         raise FileNotFoundError(f"No result json found in {RESULTS_DIR}. Run batch_processor.py first.")
 
