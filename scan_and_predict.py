@@ -656,5 +656,14 @@ def scan_sheet(image_path, save_annotated=True, clf=None, model_type="super"):
     return sheet_data
 
 if __name__ == "__main__":
-    default_img = os.path.join(BASE_DIR, "input_images", "1.jpg")
-    scan_sheet(default_img)
+    import argparse
+    parser = argparse.ArgumentParser(description="Scan and predict handwritten characters from answer sheet.")
+    parser.add_argument("image_path", nargs="?", default=os.path.join(BASE_DIR, "input_images", "1.jpg"),
+                        help="Path to the answer sheet image (default: input_images/1.jpg)")
+    parser.add_argument("--model", choices=["super", "cnn", "ensemble"], default="super",
+                        help="Model architecture to use: 'super' (default), 'cnn', or 'ensemble'")
+    parser.add_argument("--no-save", action="store_true", help="Disable saving annotated output images")
+    args = parser.parse_args()
+    
+    scan_sheet(args.image_path, save_annotated=not args.no_save, model_type=args.model)
+
