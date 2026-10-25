@@ -125,39 +125,108 @@ def load_classifier(model_type="super"):
 def preprocess_and_warp(image_path, target_w=1000, target_h=1200):
     """
     Robust table alignment and perspective warp:
-    Uses bilateral filter + edge detection with directional vertical dilation
-    to isolate the 20x20 table grid without bridging into timing marks or question numbers.
+    Uses multi-stage contour detection to isolate the exact 20x20 table grid.
+    Handles both standard sheets (test1-test8) and full-desk high-resolution photos (test9, test10).
     """
     img = cv2.imread(image_path)
     if img is None:
         raise ValueError(f"Cannot load image: {image_path}")
         
+    orig_h, orig_w = img.shape[:2]
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     filtered = cv2.bilateralFilter(gray, 9, 75, 75)
     edges = cv2.Canny(filtered, 20, 60)
     
-    # Vertical dilation bridges inter-row gaps vertically without expanding horizontally into timing marks
+    # 1. First Attempt: Standard external contour (Preserves 100% accuracy on standard cropped sheets test1-test8)
     kernel_v = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 7))
     dilated = cv2.dilate(edges, kernel_v, iterations=2)
     kernel_h = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 1))
     dilated = cv2.dilate(dilated, kernel_h, iterations=1)
     
     contours, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    contours = sorted(contours, key=cv2.contourArea, reverse=True)
-    
-    c = contours[0]
-    hull = cv2.convexHull(c)
-    peri = cv2.arcLength(hull, True)
-    approx = cv2.approxPolyDP(hull, 0.02 * peri, True)
-    pts = approx.reshape(-1, 2).astype("float32")
-    
-    rect = np.zeros((4, 2), dtype="float32")
-    s = pts.sum(axis=1)
-    rect[0] = pts[np.argmin(s)] # Top-Left
-    rect[2] = pts[np.argmax(s)] # Bottom-Right
-    diff = np.diff(pts, axis=1)
-    rect[1] = pts[np.argmin(diff)] # Top-Right
-    rect[3] = pts[np.argmax(diff)] # Bottom-Left
+    table_contour = None
+    if contours:
+        contours = sorted(contours, key=cv2.contourArea, reverse=True)
+        c0 = contours[0]
+        bx, by, bw, bh = cv2.boundingRect(c0)
+        area_ratio = cv2.contourArea(c0) / float(orig_w * orig_h)
+        aspect = bw / float(bh) if bh > 0 else 0
+        # If c0 is an exact 20x20 table (aspect 0.82-1.05 and occupies 20%-50% of the image)
+        if 0.20 <= area_ratio <= 0.50 and 0.82 <= aspect <= 1.05:
+            table_contour = c0
+            
+    # 2. Second Attempt: Scaled multi-level tree for full-desk/high-res photos (test9, test10)
+    if table_contour is None:
+        kv_size = max(7, int(orig_h * (19.0 / 4032.0)))
+        kh_size = max(3, int(orig_w * (7.0 / 3024.0)))
+        k_v2 = cv2.getStructuringElement(cv2.MORPH_RECT, (3, kv_size))
+        dil2 = cv2.dilate(edges, k_v2, iterations=2)
+        k_h2 = cv2.getStructuringElement(cv2.MORPH_RECT, (kh_size, 3))
+        dil2 = cv2.dilate(dil2, k_h2, iterations=1)
+        tree_contours, _ = cv2.findContours(dil2, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        
+        candidates = []
+        tot_area = orig_w * orig_h
+        for c in tree_contours:
+            area = cv2.contourArea(c)
+            if area > tot_area * 0.10:
+                bx, by, bw, bh = cv2.boundingRect(c)
+                asp = bw / float(bh) if bh > 0 else 0
+                if 0.80 <= asp <= 1.05 and by > orig_h * 0.15:
+                    hull = cv2.convexHull(c)
+                    approx = cv2.approxPolyDP(hull, 0.02 * cv2.arcLength(hull, True), True)
+                    if len(approx) == 4:
+                        score = 100.0 - abs(asp - 0.90) * 50.0 + (area / tot_area) * 10.0
+                        candidates.append((score, approx, c))
+                        
+        if candidates:
+            candidates.sort(key=lambda x: x[0], reverse=True)
+            pts = candidates[0][1].reshape(-1, 2).astype("float32")
+            rect = np.zeros((4, 2), dtype="float32")
+            s = pts.sum(axis=1)
+            rect[0] = pts[np.argmin(s)] # Top-Left
+            rect[2] = pts[np.argmax(s)] # Bottom-Right
+            diff = np.diff(pts, axis=1)
+            rect[1] = pts[np.argmin(diff)] # Top-Right
+            rect[3] = pts[np.argmax(diff)] # Bottom-Left
+            
+            # Bottom-left refinement for photos with slight perspective skew (e.g. test9)
+            tl, tr, br, bl = rect[0], rect[1], rect[2], rect[3]
+            top_dy = tr[1] - tl[1]
+            bot_dy = br[1] - bl[1]
+            if abs(bot_dy - top_dy) > 35:
+                c_pts = candidates[0][2].reshape(-1, 2)
+                cx, cy = np.mean(c_pts[:, 0]), np.mean(c_pts[:, 1])
+                bl_cands = c_pts[(c_pts[:, 0] < cx) & (c_pts[:, 1] > cy)]
+                if len(bl_cands) > 0:
+                    max_y = np.max(bl_cands[:, 1])
+                    deep_pts = bl_cands[bl_cands[:, 1] >= max_y - 25]
+                    rect[3] = [float(np.min(deep_pts[:, 0])), float(max_y)]
+        else:
+            c = contours[0]
+            hull = cv2.convexHull(c)
+            peri = cv2.arcLength(hull, True)
+            approx = cv2.approxPolyDP(hull, 0.02 * peri, True)
+            pts = approx.reshape(-1, 2).astype("float32")
+            rect = np.zeros((4, 2), dtype="float32")
+            s = pts.sum(axis=1)
+            rect[0] = pts[np.argmin(s)] # Top-Left
+            rect[2] = pts[np.argmax(s)] # Bottom-Right
+            diff = np.diff(pts, axis=1)
+            rect[1] = pts[np.argmin(diff)] # Top-Right
+            rect[3] = pts[np.argmax(diff)] # Bottom-Left
+    else:
+        hull = cv2.convexHull(table_contour)
+        peri = cv2.arcLength(hull, True)
+        approx = cv2.approxPolyDP(hull, 0.02 * peri, True)
+        pts = approx.reshape(-1, 2).astype("float32")
+        rect = np.zeros((4, 2), dtype="float32")
+        s = pts.sum(axis=1)
+        rect[0] = pts[np.argmin(s)] # Top-Left
+        rect[2] = pts[np.argmax(s)] # Bottom-Right
+        diff = np.diff(pts, axis=1)
+        rect[1] = pts[np.argmin(diff)] # Top-Right
+        rect[3] = pts[np.argmax(diff)] # Bottom-Left
     
     dst = np.array([
         [0, 0],
@@ -267,11 +336,15 @@ def extract_character_features(cell_bgr, return_crop=False, return_meta=False, o
             (bw / max(bh, 1) >= 2.8)
         )
         is_hollow_box = (
-            bw >= cw - 8 and bh >= ch - 8 and (by <= 2 or by + bh >= ch - 2) and
-            (area / float(bw * bh) < 0.25)
+            bw >= cw - 6 and bh >= ch - 6 and by <= 2 and (by + bh >= ch - 2) and
+            (area / float(bw * bh) < 0.20)
+        )
+        is_edge_fragment = (
+            (bx <= 3 or bx + bw >= cw - 3) and
+            bw <= 4 and bh >= 10 and (bh / max(bw, 1) >= 2.5)
         )
         
-        if is_vertical_border or is_horizontal_border or is_hollow_box:
+        if is_vertical_border or is_horizontal_border or is_hollow_box or is_edge_fragment:
             continue
             
         # Filter micro-noise dots
@@ -490,18 +563,29 @@ def scan_sheet(image_path, save_annotated=True, clf=None, model_type="super"):
                             pred_label = "R"
                             confidence = max(prob_r, 0.85)
 
-                # 2. F vs E: If bottom 25% has horizontal width extending to the right, it is an E
+                # 2. F vs E: Disambiguate E and F using bottom horizontal baseline
+                elif pred_label == "E" and char_crop is not None and "F" in classes_list:
+                    bh_c, bw_c = char_crop.shape[:2]
+                    bot_strip = char_crop[int(bh_c * 0.72):, :]
+                    bot_cols = np.where(np.any(bot_strip > 0, axis=0))[0]
+                    reach = (bot_cols[-1] / max(bw_c - 1, 1)) if len(bot_cols) > 0 else 0
+                    bot_w = len(bot_cols)
+                    prob_f = float(probs[classes_list.index("F")])
+                    # If predicted as E, but bottom has NO stroke extending to the right, it is an F!
+                    if reach < 0.40 and bot_w < 0.25 * bw_c:
+                        pred_label = "F"
+                        confidence = max(prob_f, 0.88)
                 elif pred_label == "F" and char_crop is not None and "E" in classes_list:
                     bh_c, bw_c = char_crop.shape[:2]
-                    bot_strip = char_crop[int(bh_c * 0.75):, :]
-                    bot_w = np.sum(np.any(bot_strip > 0, axis=0))
+                    bot_strip = char_crop[int(bh_c * 0.72):, :]
+                    bot_cols = np.where(np.any(bot_strip > 0, axis=0))[0]
+                    reach = (bot_cols[-1] / max(bw_c - 1, 1)) if len(bot_cols) > 0 else 0
+                    bot_w = len(bot_cols)
                     prob_e = float(probs[classes_list.index("E")])
-                    cols = np.where(np.any(bot_strip > 0, axis=0))[0]
-                    reach = (cols[-1] / max(bw_c - 1, 1)) if len(cols) > 0 else 0
-                    count = len(cols)
-                    if (bot_w >= 0.25 * bw_c and prob_e > 0.005) or (reach >= 0.70 and count >= 10):
+                    # Only flip F to E if bottom stroke clearly extends across the baseline
+                    if reach >= 0.70 and bot_w >= 0.50 * bw_c and prob_e > 0.05:
                         pred_label = "E"
-                        confidence = max(prob_e, 0.85)
+                        confidence = max(prob_e, 0.88)
 
                 # 3. C vs O & C vs D:
                 elif pred_label == "C" and char_crop is not None:

@@ -30,6 +30,8 @@ MODEL_FILE = os.path.join(MODEL_DIR, "char_cnn.pth")
 INPUT_DIR = os.path.join(BASE_DIR, "input_images")
 EMNIST_CSV_PATH = os.path.join(BASE_DIR, "emnist_data", "emnist-byclass-train.csv")
 AZ_CSV_PATH = os.path.join(BASE_DIR, "A-Z Handwritten Alphabets in CSV Format", "A_Z Handwritten Data.csv")
+HASY_DIR = os.path.join(BASE_DIR, "hasy_data")
+HASY_CSV = os.path.join(HASY_DIR, "hasy-data-labels.csv")
 
 LOG_DIR = os.path.join(BASE_DIR, "outputs", "logs")
 os.makedirs(MODEL_DIR, exist_ok=True)
@@ -44,6 +46,7 @@ CLASSES = [BLANK_CHAR] + list(string.ascii_uppercase)
 CHAR2IDX = {c: i for i, c in enumerate(CLASSES)}
 IDX2CHAR = {i: c for i, c in enumerate(CLASSES)}
 NUM_CLASSES = len(CLASSES)  # 27
+
 
 
 # =========================================================================
@@ -145,61 +148,94 @@ class CharDataset(Dataset):
         lbl = self.labels[idx]
         
         # If train, apply random slight variations
-        if self.is_train and lbl != CHAR2IDX[BLANK_CHAR]:
-            # Random rotation +-8 deg
-            angle = random.uniform(-8, 8)
-            cx, cy = 14, 14
-            M_rot = cv2.getRotationMatrix2D((cx, cy), angle, 1.0)
-            img = cv2.warpAffine(img, M_rot, (28, 28), borderValue=0)
-            
-            # Random translation +-1px
-            dx = random.choice([-1, 0, 1])
-            dy = random.choice([-1, 0, 1])
-            M_trans = np.float32([[1, 0, dx], [0, 1, dy]])
-            img = cv2.warpAffine(img, M_trans, (28, 28), borderValue=0)
-            
-            # Random slight erosion/dilation (mimic pencil/pen)
-            if random.random() < 0.25:
-                k = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
-                if random.random() < 0.5:
-                    img = cv2.dilate(img, k, iterations=1)
-                else:
-                    er = cv2.erode(img, k, iterations=1)
-                    if np.count_nonzero(er) > 15:
-                        img = er
+        if self.is_train:
+            if lbl == CHAR2IDX[BLANK_CHAR]:
+                # Simulate occasional grid line border remnants in blank cells (20% of the time)
+                # This teaches the CNN that vertical/horizontal border edges are still BLANK (-) and NOT 'I'
+                if random.random() < 0.20:
+                    side = random.choice(["left", "right", "top", "bottom"])
+                    b_img = np.zeros((28, 28), dtype=np.uint8)
+                    thick = random.choice([1, 2])
+                    h_val = random.randint(120, 240)
+                    if side == "left":
+                        b_img[:, :thick] = h_val
+                    elif side == "right":
+                        b_img[:, -thick:] = h_val
+                    elif side == "top":
+                        b_img[:thick, :] = h_val
+                    else:
+                        b_img[-thick:, :] = h_val
+                    img = b_img
+            else:
+                # Random rotation +-10 deg
+                angle = random.uniform(-10, 10)
+                cx, cy = 14, 14
+                M_rot = cv2.getRotationMatrix2D((cx, cy), angle, 1.0)
+                img = cv2.warpAffine(img, M_rot, (28, 28), borderValue=0)
+                
+                # Random translation +-1.5px
+                dx = random.choice([-2, -1, 0, 1, 2])
+                dy = random.choice([-2, -1, 0, 1, 2])
+                M_trans = np.float32([[1, 0, dx], [0, 1, dy]])
+                img = cv2.warpAffine(img, M_trans, (28, 28), borderValue=0)
+                
+                # Random slight shear (-6 to +6 degrees)
+                if random.random() < 0.30:
+                    shear = random.uniform(-0.12, 0.12)
+                    M_shear = np.float32([[1, shear, 0], [0, 1, 0]])
+                    img = cv2.warpAffine(img, M_shear, (28, 28), borderValue=0)
+                
+                # Random slight erosion/dilation (mimic thin pencil vs bold pen)
+                if random.random() < 0.30:
+                    k = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
+                    if random.random() < 0.5:
+                        img = cv2.dilate(img, k, iterations=1)
+                    else:
+                        er = cv2.erode(img, k, iterations=1)
+                        if np.count_nonzero(er) > 15:
+                            img = er
 
-            # Random Stroke Erasing Augmentation (Pencil Gap & Broken Stroke Simulator)
-            # Mimics faint pencil lifts and gaps from test2.jpg
-            if random.random() < 0.35:
-                fg_y, fg_x = np.where(img > 50)
-                if len(fg_x) > 20:
-                    rand_idx = random.randint(0, len(fg_x) - 1)
-                    rx, ry = fg_x[rand_idx], fg_y[rand_idx]
-                    ew = random.randint(1, 3)
-                    eh = random.randint(2, 4)
-                    ex0 = max(0, rx - ew // 2)
-                    ex1 = min(28, rx + ew // 2 + 1)
-                    ey0 = max(0, ry - eh // 2)
-                    ey1 = min(28, ry + eh // 2 + 1)
-                    erased = img.copy()
-                    erased[ey0:ey1, ex0:ex1] = 0
-                    if np.count_nonzero(erased) > 15:
-                        img = erased
+                # Targeted F vs E Augmentation:
+                # For 'F': add tiny smudge near bottom so model learns F with bottom artifact is still F
+                if lbl == CHAR2IDX.get("F", -1) and random.random() < 0.25:
+                    smudge_x = random.randint(14, 24)
+                    smudge_y = random.randint(23, 27)
+                    img[smudge_y:smudge_y+2, smudge_x:smudge_x+2] = random.randint(120, 220)
 
-            # Targeted O vs C gap simulation for O:
-            # Randomly erase 2-3px on the right arc so CNN learns that broken O is still O!
-            if lbl == CHAR2IDX.get("O", -1) and random.random() < 0.25:
-                gap_y = random.randint(10, 16)
-                img[gap_y : gap_y + 3, 16:24] = 0
-                        
+                # For 'E': occasionally shorten bottom bar so model learns to recognize weak-bar E
+                if lbl == CHAR2IDX.get("E", -1) and random.random() < 0.25:
+                    img[22:28, 18:27] = 0
+
+                # Random Stroke Erasing Augmentation (Pencil Gap & Broken Stroke Simulator)
+                if random.random() < 0.35:
+                    fg_y, fg_x = np.where(img > 50)
+                    if len(fg_x) > 20:
+                        rand_idx = random.randint(0, len(fg_x) - 1)
+                        rx, ry = fg_x[rand_idx], fg_y[rand_idx]
+                        ew = random.randint(1, 3)
+                        eh = random.randint(2, 4)
+                        ex0 = max(0, rx - ew // 2)
+                        ex1 = min(28, rx + ew // 2 + 1)
+                        ey0 = max(0, ry - eh // 2)
+                        ey1 = min(28, ry + eh // 2 + 1)
+                        erased = img.copy()
+                        erased[ey0:ey1, ex0:ex1] = 0
+                        if np.count_nonzero(erased) > 15:
+                            img = erased
+
+                # Targeted O vs C gap simulation for O:
+                if lbl == CHAR2IDX.get("O", -1) and random.random() < 0.25:
+                    gap_y = random.randint(10, 16)
+                    img[gap_y : gap_y + 3, 16:24] = 0
+                            
         # Normalize to [0.0, 1.0] and add channel dim -> (1, 28, 28)
         tensor_img = torch.from_numpy(img.astype(np.float32) / 255.0).unsqueeze(0)
         return tensor_img, lbl
 
 
-def load_dataset_for_cnn(max_emnist=400, max_az=400):
+def load_dataset_for_cnn(rebuild_cache=False, balance_classes=False, target_samples_per_class=None, max_emnist=400, max_az=400):
     cache_path = os.path.join(BASE_DIR, "dataset_cache_cnn.npz")
-    if os.path.exists(cache_path):
+    if os.path.exists(cache_path) and not rebuild_cache:
         print(f"\n[Cache] พบไฟล์แคชชุดข้อมูล {cache_path} -> โหลดข้อมูลทันที...")
         cached = np.load(cache_path)
         X_all = cached["X"]
@@ -214,14 +250,18 @@ def load_dataset_for_cnn(max_emnist=400, max_az=400):
         images_list.append(np.zeros((28, 28), dtype=np.uint8))
         labels_list.append(CHAR2IDX[BLANK_CHAR])
         
-    # 2. Real sheets in input_images
-    image_paths = sorted(glob.glob(os.path.join(INPUT_DIR, "*.*")))
+    # 2. Real sheets in input_images (รองรับ 87 แผ่นล่าสุด)
+    import re
+    def natural_sort_key(s):
+        return tuple(int(text) if text.isdigit() else text.lower() for text in re.split(r'(\d+)', str(s)))
+
+    image_paths = sorted(glob.glob(os.path.join(INPUT_DIR, "*.*")), key=natural_sort_key)
     image_paths = [p for p in image_paths if p.lower().endswith(('.png', '.jpg', '.jpeg'))]
     
     odd_expected = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M"] + [BLANK_CHAR] * 7
     even_expected = ["N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"] + [BLANK_CHAR] * 7
     
-    print(f"\n[1/3] กำลังสกัดตัวอักษร 28x28 จากภาพจริง {len(image_paths)} แผ่น...")
+    print(f"\n[1/4] กำลังสกัดตัวอักษร 28x28 จากภาพจริง {len(image_paths)} แผ่น...")
     for img_path in tqdm(image_paths, desc="สกัดจากแผ่นงาน"):
         warped = preprocess_and_warp(img_path)
         row_boxes = detect_table_rows(warped)
@@ -247,7 +287,7 @@ def load_dataset_for_cnn(max_emnist=400, max_az=400):
                         
     # 3. EMNIST Dataset
     if os.path.exists(EMNIST_CSV_PATH):
-        print(f"\n[2/3] กำลังโหลด EMNIST A-Z ({max_emnist} ตัวอย่าง/ตัวอักษร)...")
+        print(f"\n[2/4] กำลังโหลด EMNIST A-Z ({max_emnist} ตัวอย่าง/ตัวอักษร)...")
         counts = {i: 0 for i in range(10, 36)}
         ascii_map = {10 + i: char for i, char in enumerate(string.ascii_uppercase)}
         with open(EMNIST_CSV_PATH, "r", encoding="utf-8") as f:
@@ -265,7 +305,7 @@ def load_dataset_for_cnn(max_emnist=400, max_az=400):
                         
     # 4. Kaggle A-Z Dataset
     if os.path.exists(AZ_CSV_PATH):
-        print(f"\n[3/3] กำลังโหลด Kaggle A-Z ({max_az} ตัวอย่าง/ตัวอักษร)...")
+        print(f"\n[3/4] กำลังโหลด Kaggle A-Z ({max_az} ตัวอย่าง/ตัวอักษร)...")
         counts = {i: 0 for i in range(26)}
         ascii_map = {i: char for i, char in enumerate(string.ascii_uppercase)}
         with open(AZ_CSV_PATH, "r", encoding="utf-8") as f:
@@ -281,18 +321,73 @@ def load_dataset_for_cnn(max_emnist=400, max_az=400):
                     if all(v >= max_az for v in counts.values()):
                         break
 
+    # 5. HASYv2 Dataset (ใหม่: ขยายตัวอย่าง A-Z จากภาพเขียนมือสากล)
+    if os.path.exists(HASY_CSV):
+        print(f"\n[4/4] กำลังโหลด HASYv2 A-Z ({HASY_CSV})...")
+        import pandas as pd
+        df_hasy = pd.read_csv(HASY_CSV)
+        az_hasy = df_hasy[df_hasy['latex'].isin(list(string.ascii_uppercase))]
+        hasy_count = 0
+        for _, row in tqdm(az_hasy.iterrows(), total=len(az_hasy), desc="โหลด HASYv2 A-Z"):
+            img_rel = row['path']
+            img_p = os.path.join(HASY_DIR, img_rel)
+            if os.path.exists(img_p):
+                raw = cv2.imread(img_p, cv2.IMREAD_GRAYSCALE)
+                if raw is not None:
+                    # Invert polarity: หมึกขาวบนพื้นหลังสีดำ (มาตรฐาน MNIST/EMNIST)
+                    inv = 255 - raw
+                    r28 = cv2.resize(inv, (28, 28))
+                    aligned = align_centroid(r28)
+                    images_list.append(aligned)
+                    labels_list.append(CHAR2IDX[row['latex']])
+                    hasy_count += 1
+        print(f"[HASYv2] โหลดตัวอักษร A-Z สำเร็จ: {hasy_count:,} ตัวอย่าง")
+
+    # 6. ปรับสมดุลข้อมูลทุกตัวอักษรให้เท่ากัน (Class Balancing)
+    if balance_classes or target_samples_per_class is not None:
+        print("\n[Balancing] กำลังปรับสมดุลจำนวนภาพตัวอย่างให้เท่ากันทุกคลาส A-Z...")
+        az_indices = {c: [] for c in string.ascii_uppercase}
+        blank_indices = []
+        for idx, lbl_idx in enumerate(labels_list):
+            char_name = IDX2CHAR[lbl_idx]
+            if char_name == BLANK_CHAR:
+                blank_indices.append(idx)
+            else:
+                az_indices[char_name].append(idx)
+
+        if target_samples_per_class is None:
+            target_count = min(len(idx_list) for idx_list in az_indices.values())
+            print(f"[Balancing] ปรับ Undersampling ให้เท่ากับคลาสน้อยสุด: {target_count:,} ภาพ/ตัวอักษร")
+        else:
+            target_count = target_samples_per_class
+            print(f"[Balancing] ปรับให้เท่ากับค่าเป้าหมาย: {target_count:,} ภาพ/ตัวอักษร")
+
+        balanced_indices = []
+        np.random.seed(42)
+        for c, idx_list in az_indices.items():
+            if len(idx_list) >= target_count:
+                chosen = np.random.choice(idx_list, size=target_count, replace=False)
+            else:
+                chosen = np.random.choice(idx_list, size=target_count, replace=True)
+            balanced_indices.extend(chosen)
+
+        # เพิ่มช่องว่าง (Blank)
+        balanced_indices.extend(blank_indices)
+        images_list = [images_list[i] for i in balanced_indices]
+        labels_list = [labels_list[i] for i in balanced_indices]
+        print(f"[Balancing] ปรับสมดุลเสร็จสิ้น: รวม A-Z ทั้งหมด {target_count * 26:,} ภาพ ({target_count} ภาพ/คลาส)")
+
     X_all = np.array(images_list, dtype=np.uint8)
     y_all = np.array(labels_list, dtype=np.int64)
     print(f"\n[รวมชุดข้อมูล] ทั้งหมด {len(X_all):,} ตัวอย่าง 28x28")
     
-    cache_path = os.path.join(BASE_DIR, "dataset_cache_cnn.npz")
     print(f"[Cache] กำลังบันทึกแคชชุดข้อมูลลง {cache_path}...")
     np.savez_compressed(cache_path, X=X_all, y=y_all)
     print("[Cache] บันทึกสำเร็จ!")
     return X_all, y_all
 
 
-def train_cnn(fine_tune=True, max_epochs=None):
+def train_cnn(fine_tune=True, max_epochs=None, rebuild_cache=False, balance_classes=False, target_samples=None, patience=6, lr=None, batch_size_arg=None):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     num_cpus = os.cpu_count() or 8
     torch.set_num_threads(num_cpus)
@@ -302,8 +397,12 @@ def train_cnn(fine_tune=True, max_epochs=None):
         print(f"GPU: {torch.cuda.get_device_name(0)}")
     print("=" * 60)
     
-    X_all, y_all = load_dataset_for_cnn()
-    
+    X_all, y_all = load_dataset_for_cnn(
+        rebuild_cache=rebuild_cache,
+        balance_classes=balance_classes,
+        target_samples_per_class=target_samples
+    )
+
     # Train / Val Split (90% / 10%)
     indices = np.arange(len(X_all))
     np.random.seed(42)
@@ -314,7 +413,7 @@ def train_cnn(fine_tune=True, max_epochs=None):
     train_dataset = CharDataset(X_all[train_idx], y_all[train_idx], is_train=True)
     val_dataset = CharDataset(X_all[val_idx], y_all[val_idx], is_train=False)
     
-    batch_size = 128 if device.type == "cuda" else 64
+    batch_size = batch_size_arg if batch_size_arg is not None else (128 if device.type == "cuda" else 64)
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, pin_memory=(device.type == "cuda"))
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
     
@@ -330,22 +429,29 @@ def train_cnn(fine_tune=True, max_epochs=None):
             
     criterion = FocalLoss(alpha=class_weights, gamma=2.0, label_smoothing=0.05)
     
+    # Auto-Backup existing model before starting
+    if os.path.exists(MODEL_FILE):
+        import shutil
+        backup_path = os.path.join(MODEL_DIR, "char_cnn_backup.pth")
+        shutil.copyfile(MODEL_FILE, backup_path)
+        print(f"[Safety Backup] สำรองโมเดล CNN เดิมไว้ที่: {backup_path}")
+
     if fine_tune and os.path.exists(MODEL_FILE):
         print(f"\n[Transfer Learning] โหลดน้ำหนักเดิมจาก {MODEL_FILE} เพื่อทำ Fine-Tuning ต่อยอด...")
         ckpt = torch.load(MODEL_FILE, map_location=device)
         state_dict = ckpt["model_state_dict"] if isinstance(ckpt, dict) and "model_state_dict" in ckpt else ckpt
         model.load_state_dict(state_dict)
-        initial_lr = 3e-4
+        initial_lr = lr if lr is not None else 3e-4
         print(f"[Transfer Learning] โหลดสำเร็จ! เริ่มต้น Fine-Tuning ด้วย LR: {initial_lr}")
     else:
-        initial_lr = 1e-3
+        initial_lr = lr if lr is not None else 1e-3
         print(f"\n[From Scratch] เริ่มต้นฝึกสอนจากศูนย์ด้วย LR: {initial_lr}")
 
     optimizer = optim.AdamW(model.parameters(), lr=initial_lr, weight_decay=1e-4)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=2, min_lr=1e-5)
     
-    # กำหนดค่า Early Stopping: ถ้าค่าความแม่นยำ (Val Acc) ไม่ทำลายสถิติสูงสุดติดต่อกันตามจำนวนรอบที่กำหนด ให้หยุดเทรน
-    PATIENCE = 5
+    # กำหนดค่า Early Stopping
+    PATIENCE = patience
     patience_counter = 0
     best_val_acc = 0.0
     best_val_loss = float("inf")
@@ -586,5 +692,20 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train 2D CNN with Hard-Negative Mining & Focal Loss (Approach 3)")
     parser.add_argument("--scratch", action="store_true", help="ฝึกสอนใหม่ทั้งหมดตั้งแต่แรก (ไม่ใช้ weights เดิม)")
     parser.add_argument("--epochs", type=int, default=None, help="จำนวน epoch สูงสุด (Default: รันไปเรื่อยๆ จน Early Stopping)")
+    parser.add_argument("--patience", type=int, default=6, help="จำนวนรอบที่คะแนนไม่เพิ่มก่อน Early Stopping (Default: 6)")
+    parser.add_argument("--lr", type=float, default=None, help="Learning Rate เริ่มต้น (เช่น 0.0003)")
+    parser.add_argument("--batch-size", type=int, default=None, help="ขนาด Batch Size (Default: 128 สำหรับ GPU, 64 สำหรับ CPU)")
+    parser.add_argument("--rebuild-cache", action="store_true", help="สร้าง dataset_cache_cnn.npz ใหม่จากภาพกระดาษคำตอบ + HASYv2 + EMNIST + Kaggle")
+    parser.add_argument("--balance", action="store_true", help="ปรับสมดุลจำนวนตัวอย่าง A-Z ให้เท่ากันทุกตัวอักษร")
+    parser.add_argument("--target-samples", type=int, default=None, help="กำหนดจำนวนตัวอย่างเป้าหมายต่อตัวอักษร A-Z (เช่น 1700)")
     args = parser.parse_args()
-    train_cnn(fine_tune=(not args.scratch), max_epochs=args.epochs)
+    train_cnn(
+        fine_tune=(not args.scratch),
+        max_epochs=args.epochs,
+        rebuild_cache=args.rebuild_cache,
+        balance_classes=args.balance,
+        target_samples=args.target_samples,
+        patience=args.patience,
+        lr=args.lr,
+        batch_size_arg=args.batch_size
+    )

@@ -25,10 +25,13 @@ outputs/visuals/sample_*.jpg
 outputs/*.png
 models/*backup*
 models/*_v*.pkl
+models/*balanced*.pkl
 
 # Heavy external datasets
 emnist_data/
 A-Z Handwritten Alphabets in CSV Format/
+hasy_data/
+models/backups/
 *.csv
 !outputs/logs/*.csv
 

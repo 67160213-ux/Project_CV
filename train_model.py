@@ -5,6 +5,8 @@ import glob
 import joblib
 import string
 import shutil
+import re
+import argparse
 from tqdm import tqdm
 from sklearn.model_selection import train_test_split
 from sklearn.neural_network import MLPClassifier
@@ -25,6 +27,8 @@ MODEL_FILE = os.path.join(MODEL_DIR, "char_classifier.pkl")
 INPUT_DIR = os.path.join(BASE_DIR, "input_images")
 EMNIST_CSV_PATH = os.path.join(BASE_DIR, "emnist_data", "emnist-byclass-train.csv")
 AZ_CSV_PATH = os.path.join(BASE_DIR, "A-Z Handwritten Alphabets in CSV Format", "A_Z Handwritten Data.csv")
+HASY_DIR = os.path.join(BASE_DIR, "hasy_data")
+HASY_CSV = os.path.join(HASY_DIR, "hasy-data-labels.csv")
 
 os.makedirs(MODEL_DIR, exist_ok=True)
 
@@ -281,8 +285,64 @@ def load_az_from_csv(csv_path=AZ_CSV_PATH, samples_per_class=500):
     print(f"[A-Z Dataset] โหลดเสร็จสิ้น: รวม {len(X_az):,} ตัวอย่าง (รวมจำลองเส้นดินสอ)")
     return X_az, y_az
 
-def train_and_save(emnist_samples_per_class=500, az_samples_per_class=500):
-    image_paths = sorted(glob.glob(os.path.join(INPUT_DIR, "*.jpg")) + glob.glob(os.path.join(INPUT_DIR, "*.png")))
+def load_hasy_from_folder(hasy_dir=HASY_DIR, hasy_csv=HASY_CSV):
+    """
+    ดึงข้อมูลตัวพิมพ์ใหญ่ A-Z จาก HASYv2 Dataset (32x32 -> Invert Polarity -> 28x28 -> Centroid Alignment)
+    พร้อมสกัด Hybrid Features 1,176 มิติ (Raw Pixels 784 + HOG 392)
+    และจำลองเส้นดินสอจางด้วย Erosion Augmentation
+    """
+    if not os.path.exists(hasy_csv):
+        print(f"[HASYv2] ไม่พบไฟล์ {hasy_csv} -> ข้ามการโหลด HASYv2")
+        return [], []
+
+    print(f"\n[HASYv2] กำลังโหลดตัวอักษร A-Z จาก HASYv2 ({hasy_csv})...")
+    import pandas as pd
+    df_hasy = pd.read_csv(hasy_csv)
+    az_hasy = df_hasy[df_hasy['latex'].isin(list(string.ascii_uppercase))]
+
+    k_thin_v = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 2))
+    k_thin_h = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 1))
+
+    X_hasy, y_hasy = [], []
+    for idx, (_, row) in enumerate(tqdm(az_hasy.iterrows(), total=len(az_hasy), desc="โหลด HASYv2 A-Z", unit="ตัวอย่าง")):
+        img_p = os.path.join(hasy_dir, row['path'])
+        if os.path.exists(img_p):
+            raw = cv2.imread(img_p, cv2.IMREAD_GRAYSCALE)
+            if raw is not None:
+                # 1. Invert polarity: HASYv2 เป็นหมึกดำบนพื้นขาว -> พลิกเป็นหมึกขาวบนพื้นดำ (มาตรฐาน MNIST/EMNIST)
+                inv = 255 - raw
+                r28 = cv2.resize(inv, (28, 28))
+
+                # 2. จัดกึ่งกลางมวลหมึกด้วย Image Moments มาที่พิกัด (14, 14)
+                aligned = align_centroid(r28)
+
+                # 3. สกัด Hybrid Features 1,176 มิติ (Raw Pixels 784 + HOG 392)
+                pix_feat = aligned.flatten() / 255.0
+                hog_feat = compute_hog_28(aligned, orientations=HOG_ORIENTATIONS)
+                comb_feat = np.hstack([pix_feat, hog_feat]).astype(np.float32)
+
+                X_hasy.append(comb_feat)
+                y_hasy.append(row['latex'])
+
+                # 4. จำลองลายมือดินสอเส้นบาง (Thin Pencil Stroke Simulation ด้วย Erosion)
+                k_thin = k_thin_v if idx % 2 == 0 else k_thin_h
+                eroded = cv2.erode(aligned, k_thin, iterations=1)
+                if np.count_nonzero(eroded) > 20:
+                    aligned_er = align_centroid(eroded)
+                    pix_feat_er = aligned_er.flatten() / 255.0
+                    hog_feat_er = compute_hog_28(aligned_er, orientations=HOG_ORIENTATIONS)
+                    X_hasy.append(np.hstack([pix_feat_er, hog_feat_er]).astype(np.float32))
+                    y_hasy.append(row['latex'])
+
+    print(f"[HASYv2] โหลดเสร็จสิ้น: รวม {len(X_hasy):,} ตัวอย่าง (รวมจำลองเส้นดินสอ)")
+    return X_hasy, y_hasy
+
+def natural_sort_key(s):
+    return tuple(int(text) if text.isdigit() else text.lower() for text in re.split(r'(\d+)', str(s)))
+
+def train_and_save(emnist_samples_per_class=500, az_samples_per_class=500, use_hasy=True, balance_classes=False, target_samples=None, num_epochs=60, auto_stop=False, patience=5):
+    all_files = glob.glob(os.path.join(INPUT_DIR, "*.*"))
+    image_paths = sorted([p for p in all_files if p.lower().endswith(('.jpg', '.jpeg', '.png'))], key=natural_sort_key)
     if not image_paths:
         raise FileNotFoundError(f"ไม่พบไฟล์รูปภาพในโฟลเดอร์ {INPUT_DIR}")
 
@@ -299,6 +359,11 @@ def train_and_save(emnist_samples_per_class=500, az_samples_per_class=500):
     # 2. ดึงข้อมูลเสริมจาก Kaggle A-Z Handwritten Alphabets
     X_az, y_az = load_az_from_csv(AZ_CSV_PATH, samples_per_class=az_samples_per_class)
 
+    # 3. ดึงข้อมูลเสริมจาก HASYv2 Dataset
+    X_hasy, y_hasy = ([], [])
+    if use_hasy:
+        X_hasy, y_hasy = load_hasy_from_folder(HASY_DIR, HASY_CSV)
+
     # รวมชุดข้อมูลทุกแหล่งเข้าด้วยกัน
     X_all = [X_sheet]
     y_all = [y_sheet]
@@ -311,14 +376,51 @@ def train_and_save(emnist_samples_per_class=500, az_samples_per_class=500):
         X_all.append(np.array(X_az, dtype=np.float32))
         y_all.append(np.array(y_az))
 
+    if len(X_hasy) > 0:
+        X_all.append(np.array(X_hasy, dtype=np.float32))
+        y_all.append(np.array(y_hasy))
+
     X = np.vstack(X_all)
     y = np.concatenate(y_all)
 
+    # ปรับสมดุลข้อมูลทุกตัวอักษรให้เท่ากัน (Class Balancing) ถ้าเปิดใช้งาน
+    if balance_classes or target_samples is not None:
+        print("\n[Balancing] กำลังปรับสมดุลจำนวนภาพตัวอย่างให้เท่ากันทุกคลาส A-Z...")
+        az_indices = {c: [] for c in string.ascii_uppercase}
+        blank_indices = []
+        for idx, lbl in enumerate(y):
+            if lbl == BLANK_CHAR:
+                blank_indices.append(idx)
+            elif lbl in az_indices:
+                az_indices[lbl].append(idx)
+
+        if target_samples is None:
+            target_count = min(len(idx_list) for idx_list in az_indices.values())
+            print(f"[Balancing] ปรับ Undersampling ให้เท่ากับคลาสน้อยสุด: {target_count:,} ภาพ/ตัวอักษร")
+        else:
+            target_count = target_samples
+            print(f"[Balancing] ปรับให้เท่ากับค่าเป้าหมาย: {target_count:,} ภาพ/ตัวอักษร")
+
+        balanced_indices = []
+        np.random.seed(42)
+        for c, idx_list in az_indices.items():
+            if len(idx_list) >= target_count:
+                chosen = np.random.choice(idx_list, size=target_count, replace=False)
+            else:
+                chosen = np.random.choice(idx_list, size=target_count, replace=True)
+            balanced_indices.extend(chosen)
+
+        balanced_indices.extend(blank_indices)
+        X = X[balanced_indices]
+        y = y[balanced_indices]
+        print(f"[Balancing] ปรับสมดุลเสร็จสิ้น: รวม A-Z ทั้งหมด {target_count * 26:,} ภาพ ({target_count} ภาพ/คลาส)")
+
     classes = np.unique(y)
     print(f"\nสรุปข้อมูลชุดฝึกสอนรวม:")
-    print(f" - ข้อมูลจากกระดาษคำตอบ (78 แผ่น + Augmentation): {len(X_sheet):,} ตัวอย่าง")
+    print(f" - ข้อมูลจากกระดาษคำตอบ ({len(image_paths)} แผ่น + Augmentation): {len(X_sheet):,} ตัวอย่าง")
     print(f" - ข้อมูลเสริมจาก EMNIST (NIST): {len(X_emnist):,} ตัวอย่าง")
     print(f" - ข้อมูลเสริมจาก Kaggle A-Z Alphabets: {len(X_az):,} ตัวอย่าง")
+    print(f" - ข้อมูลเสริมจาก HASYv2: {len(X_hasy):,} ตัวอย่าง")
     print(f" - จำนวนตัวอย่างทั้งหมดในโมเดล: {len(X):,} ตัวอย่าง")
     print(f" - มิติเวกเตอร์ (Features): {X.shape[1]} มิติ (784 Pixels + 392 HOG)")
     print(f" - จำนวนคลาสที่เรียนรู้: {len(classes)} คลาส ({', '.join(classes)})")
@@ -336,16 +438,46 @@ def train_and_save(emnist_samples_per_class=500, az_samples_per_class=500):
         random_state=42,
     )
 
+    import copy
+    best_val_acc = 0.0
+    best_clf = None
+    patience_cnt = 0
+    total_epochs = 200 if (auto_stop and num_epochs == 60) else num_epochs
+
     # วนลูป Epochs พร้อมแถบเปอร์เซ็นต์แบบ Real-Time ด้วย tqdm
-    num_epochs = 60
-    pbar_train = tqdm(range(1, num_epochs + 1), desc="รอบการเทรน (Epochs)", unit="epoch")
+    pbar_train = tqdm(range(1, total_epochs + 1), desc="รอบการเทรน (Epochs)", unit="epoch")
 
     for epoch in pbar_train:
         clf.partial_fit(X_train, y_train, classes=classes)
-        pbar_train.set_postfix({
-            "Loss": f"{clf.loss_:.4f}",
-            "Progress": f"{(epoch/num_epochs)*100:.1f}%"
-        })
+        
+        if auto_stop:
+            val_acc = accuracy_score(y_test, clf.predict(X_test))
+            if val_acc > best_val_acc:
+                best_val_acc = val_acc
+                best_clf = copy.deepcopy(clf)
+                patience_cnt = 0
+                status_str = f"🌟 Best {val_acc*100:.2f}%"
+            else:
+                patience_cnt += 1
+                status_str = f"Patience {patience_cnt}/{patience}"
+                
+            pbar_train.set_postfix({
+                "Loss": f"{clf.loss_:.4f}",
+                "Val_Acc": f"{val_acc*100:.2f}%",
+                "Status": status_str
+            })
+            
+            if patience_cnt >= patience:
+                print(f"\n\n[Early Stopping] Accuracy ไม่พัฒนาขึ้นติดต่อกัน {patience} รอบแล้ว")
+                print(f"-> สิ้นสุดการฝึกสอน! สถิติความแม่นยำสูงสุดอยู่ที่: {best_val_acc*100:.2f}%")
+                print("-> คืนค่าโมเดลชุดที่ทำสถิติสูงสุดสมบูรณ์")
+                clf = best_clf
+                break
+        else:
+            pbar_train.set_postfix({
+                "Loss": f"{clf.loss_:.4f}",
+                "Progress": f"{(epoch/total_epochs)*100:.1f}%"
+            })
 
     print("\n" + "=" * 65)
     print(" วัดผลและประเมินความแม่นยำ (Evaluation Results):")
@@ -368,4 +500,24 @@ def train_and_save(emnist_samples_per_class=500, az_samples_per_class=500):
     print("=" * 65)
 
 if __name__ == "__main__":
-    train_and_save()
+    parser = argparse.ArgumentParser(description="Train MLP Classifier (Hybrid Pixels + HOG + Centroid Alignment)")
+    parser.add_argument("--emnist-samples", type=int, default=500, help="จำนวนตัวอย่าง EMNIST ต่อตัวอักษร (Default: 500)")
+    parser.add_argument("--az-samples", type=int, default=500, help="จำนวนตัวอย่าง Kaggle A-Z ต่อตัวอักษร (Default: 500)")
+    parser.add_argument("--no-hasy", action="store_true", help="ไม่รวมข้อมูล HASYv2")
+    parser.add_argument("--balance", action="store_true", help="ปรับสมดุลจำนวนตัวอย่าง A-Z ให้เท่ากันทุกตัวอักษร")
+    parser.add_argument("--target-samples", type=int, default=None, help="กำหนดจำนวนตัวอย่างเป้าหมายต่อตัวอักษร A-Z")
+    parser.add_argument("--epochs", type=int, default=60, help="จำนวนรอบ Epochs (Default: 60)")
+    parser.add_argument("--auto-stop", action="store_true", help="เทรนไปเรื่อยๆ จนกระทั่ง Accuracy ลดลงติดต่อกันตามค่า patience แล้วหยุดอัตโนมัติ")
+    parser.add_argument("--patience", type=int, default=5, help="จำนวนรอบที่ยอมให้คะแนนไม่ดีขึ้นก่อนหยุด (Default: 5)")
+    args = parser.parse_args()
+
+    train_and_save(
+        emnist_samples_per_class=args.emnist_samples,
+        az_samples_per_class=args.az_samples,
+        use_hasy=(not args.no_hasy),
+        balance_classes=args.balance,
+        target_samples=args.target_samples,
+        num_epochs=args.epochs,
+        auto_stop=args.auto_stop,
+        patience=args.patience
+    )
