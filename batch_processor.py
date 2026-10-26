@@ -15,7 +15,7 @@ TEST_DIR = os.path.join(BASE_DIR, "test_image")
 INPUT_DIR = TEST_DIR  # ดึงภาพทดสอบจาก test_image เป็นค่าเริ่มต้น
 OUTPUT_EXCEL = os.path.join(BASE_DIR, "outputs", "results", "all_results.xlsx")
 
-def export_styled_excel(df, output_excel, model_name="Dual-Ensemble (93.94%)"):
+def export_styled_excel(df, output_excel, model_name="Super-Ensemble"):
     """Exports results with professional styling: Dashboard sheet + Styled Detailed sheet"""
     import openpyxl
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
@@ -239,10 +239,25 @@ def export_styled_excel(df, output_excel, model_name="Dual-Ensemble (93.94%)"):
     ws_detail.freeze_panes = "A2"
     ws_detail.auto_filter.ref = f"A1:F{len(df)+1}"
 
-    os.makedirs(os.path.dirname(output_excel), exist_ok=True)
+    os.makedirs(os.path.dirname(os.path.abspath(output_excel)), exist_ok=True)
     wb.save(output_excel)
 
-def run_batch(input_folder=INPUT_DIR, output_excel=OUTPUT_EXCEL, model_type="ensemble"):
+def get_default_output_excel(model_type):
+    """กำหนดชื่อไฟล์ผลลัพธ์ Excel เริ่มต้นให้ตรงกับโมเดลที่เลือกใช้งาน"""
+    m_lower = str(model_type).lower()
+    if m_lower in ["super", "super_ensemble", "best"]:
+        return os.path.join(BASE_DIR, "outputs", "results", "all_results.xlsx")
+    elif m_lower == "ensemble":
+        return os.path.join(BASE_DIR, "outputs", "results", "all_results_ensemble.xlsx")
+    elif m_lower == "cnn":
+        return os.path.join(BASE_DIR, "outputs", "results", "all_results_cnn.xlsx")
+    else:
+        return os.path.join(BASE_DIR, "outputs", "results", f"all_results_{m_lower}.xlsx")
+
+def run_batch(input_folder=INPUT_DIR, output_excel=None, model_type="super"):
+    if output_excel is None:
+        output_excel = get_default_output_excel(model_type)
+        
     extensions = ("*.jpg", "*.jpeg", "*.png")
     image_paths = []
     for ext in extensions:
@@ -256,12 +271,23 @@ def run_batch(input_folder=INPUT_DIR, output_excel=OUTPUT_EXCEL, model_type="ens
         
     m_lower = model_type.lower()
     if m_lower in ["super", "super_ensemble", "best"]:
-        model_display_name = "Super-Ensemble (MLP + CNN: 94.19%)"
+        model_display_name = "Super-Ensemble"
     elif m_lower == "cnn":
-        model_display_name = "Custom 2D CNN (CharCNN 93.78%)"
+        model_display_name = "Custom 2D CNN"
     else:
-        model_display_name = "Dual-Ensemble MLP (93.94%)"
+        model_display_name = "Dual-Ensemble MLP"
     print(f"[*] โมเดลที่เลือกใช้งาน: {model_display_name}")
+    try:
+        import torch
+        if torch.cuda.is_available():
+            gpu_name = torch.cuda.get_device_name(0)
+            vram = torch.cuda.get_device_properties(0).total_memory / (1024**3)
+            print(f"[*] อุปกรณ์ประมวลผล: 🚀 GPU {gpu_name} (VRAM {vram:.1f} GB, CUDA Active)")
+        else:
+            print("[*] อุปกรณ์ประมวลผล: 💻 CPU Mode")
+    except Exception:
+        pass
+
 
     all_records = []
     failed_images = []
@@ -304,8 +330,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Automated Answer Sheet Batch Processor")
     parser.add_argument("input_folder", nargs="?", default=INPUT_DIR, help="Path to input images folder (default: test_image)")
     parser.add_argument("--model", "-m", choices=["super", "ensemble", "cnn"], default="super",
-                        help="เลือกโมเดลที่ใช้ตรวจ: 'super' (Super-Ensemble 94.19%% [แนะนำสูงสุด]), 'ensemble' (Dual-Ensemble 93.94%%) หรือ 'cnn' (Custom 2D CNN 93.78%%) [Default: super]")
-    parser.add_argument("--output", "-o", default=OUTPUT_EXCEL, help="Path to output Excel file (default: outputs/results/all_results.xlsx)")
+                        help="เลือกโมเดลที่ใช้ตรวจ: 'super' (Super-Ensemble [แนะนำสูงสุด]), 'ensemble' (Dual-Ensemble MLP) หรือ 'cnn' (Custom 2D CNN) [Default: super]")
+    parser.add_argument("--output", "-o", default=None, 
+                        help="Path to output Excel file (default: อิงตามโมเดล เช่น all_results.xlsx สำหรับ super, all_results_ensemble.xlsx สำหรับ ensemble, all_results_cnn.xlsx สำหรับ cnn)")
 
     args = parser.parse_args()
     run_batch(input_folder=args.input_folder, output_excel=args.output, model_type=args.model)

@@ -46,7 +46,7 @@ class CNNClassifierWrapper:
         else:
             self.device = device
             
-        checkpoint = torch.load(model_path, map_location=self.device)
+        checkpoint = torch.load(model_path, map_location='cpu')
         self.classes_ = np.array(checkpoint["classes"])
         self.classes_list = list(self.classes_)
         self.n_features_in_ = 1176
@@ -56,6 +56,10 @@ class CNNClassifierWrapper:
         self.model.load_state_dict(checkpoint["model_state_dict"])
         self.model.to(self.device)
         self.model.eval()
+        if self.device.type == 'cuda':
+            print(f"[*] [GPU Acceleration Active] กำลังใช้การ์ดจอ: {torch.cuda.get_device_name(self.device)} (VRAM {torch.cuda.get_device_properties(self.device).total_memory / (1024**3):.1f} GB)")
+        else:
+            print("[*] [CPU Mode] กำลังประมวลผลด้วย CPU")
         
     def predict_proba(self, X):
         import torch
@@ -228,6 +232,91 @@ def preprocess_and_warp(image_path, target_w=1000, target_h=1200):
         rect[1] = pts[np.argmin(diff)] # Top-Right
         rect[3] = pts[np.argmax(diff)] # Bottom-Left
     
+    # Universal table grid boundary refinement:
+    # Verifies that TL and BL are aligned with the true continuous vertical border of the 20x20 table,
+    # stripping away any optical timing marks, margin numbers, or desk shadows.
+    tl_x, tl_y = int(rect[0][0]), int(rect[0][1])
+    y1 = max(0, tl_y - 30)
+    y2 = min(orig_h, tl_y + int(orig_h * 0.12))
+    x1 = max(0, tl_x - 100)
+    x2 = min(orig_w, tl_x + int(orig_w * 0.15))
+    crop_tl = img[y1:y2, x1:x2]
+    if crop_tl.shape[0] >= 20 and crop_tl.shape[1] >= 50:
+        gray_tl = cv2.cvtColor(crop_tl, cv2.COLOR_BGR2GRAY)
+        inv_tl = 255 - gray_tl
+        thresh_tl = cv2.adaptiveThreshold(inv_tl, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 15, -2)
+        k_len = max(25, int(crop_tl.shape[0] * 0.15))
+        v_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, k_len))
+        v_clean = cv2.morphologyEx(thresh_tl, cv2.MORPH_OPEN, v_kernel)
+        v_proj = np.sum(v_clean, axis=0)
+        thresh_val = np.max(v_proj) * 0.4
+        if thresh_val >= 5000:
+            peaks = [i for i in range(len(v_proj)) if v_proj[i] > thresh_val]
+            if peaks:
+                clusters = []
+                curr = [peaks[0]]
+                for p in peaks[1:]:
+                    if p - curr[-1] <= 12:
+                        curr.append(p)
+                    else:
+                        clusters.append(int(np.mean(curr)))
+                        curr = [p]
+                clusters.append(int(np.mean(curr)))
+                first_v = x1 + clusters[0]
+                if first_v - rect[0][0] > 30:
+                    h_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (k_len, 1))
+                    h_clean = cv2.morphologyEx(thresh_tl, cv2.MORPH_OPEN, h_kernel)
+                    col_idx = clusters[0]
+                    sub_h = h_clean[:, max(0, col_idx - 5):min(h_clean.shape[1], col_idx + 40)]
+                    row_proj = np.sum(sub_h, axis=1)
+                    h_peaks = np.where(row_proj > np.max(row_proj) * 0.3)[0] if np.max(row_proj) > 0 else []
+                    new_y = rect[0][1]
+                    if len(h_peaks) > 0:
+                        new_y = float(y1 + h_peaks[0])
+                    rect[0][0] = float(first_v)
+                    rect[0][1] = float(new_y)
+
+    bl_x, bl_y = int(rect[3][0]), int(rect[3][1])
+    by1 = max(0, bl_y - int(orig_h * 0.12))
+    by2 = min(orig_h, bl_y + 30)
+    bx1 = max(0, bl_x - 100)
+    bx2 = min(orig_w, bl_x + int(orig_w * 0.15))
+    crop_bl = img[by1:by2, bx1:bx2]
+    if crop_bl.shape[0] >= 20 and crop_bl.shape[1] >= 50:
+        gray_bl = cv2.cvtColor(crop_bl, cv2.COLOR_BGR2GRAY)
+        inv_bl = 255 - gray_bl
+        thresh_bl = cv2.adaptiveThreshold(inv_bl, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 15, -2)
+        k_len = max(25, int(crop_bl.shape[0] * 0.15))
+        v_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, k_len))
+        v_clean = cv2.morphologyEx(thresh_bl, cv2.MORPH_OPEN, v_kernel)
+        v_proj = np.sum(v_clean, axis=0)
+        thresh_val = np.max(v_proj) * 0.4
+        if thresh_val >= 5000:
+            peaks = [i for i in range(len(v_proj)) if v_proj[i] > thresh_val]
+            if peaks:
+                clusters = []
+                curr = [peaks[0]]
+                for p in peaks[1:]:
+                    if p - curr[-1] <= 12:
+                        curr.append(p)
+                    else:
+                        clusters.append(int(np.mean(curr)))
+                        curr = [p]
+                clusters.append(int(np.mean(curr)))
+                first_v_bl = bx1 + clusters[0]
+                if first_v_bl - rect[3][0] > 30:
+                    h_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (k_len, 1))
+                    h_clean = cv2.morphologyEx(thresh_bl, cv2.MORPH_OPEN, h_kernel)
+                    col_idx = clusters[0]
+                    sub_h = h_clean[:, max(0, col_idx - 5):min(h_clean.shape[1], col_idx + 40)]
+                    row_proj = np.sum(sub_h, axis=1)
+                    h_peaks = np.where(row_proj > np.max(row_proj) * 0.3)[0] if np.max(row_proj) > 0 else []
+                    new_y_bl = rect[3][1]
+                    if len(h_peaks) > 0:
+                        new_y_bl = float(by1 + h_peaks[-1])
+                    rect[3][0] = float(first_v_bl)
+                    rect[3][1] = float(new_y_bl)
+
     dst = np.array([
         [0, 0],
         [target_w - 1, 0],
@@ -533,8 +622,8 @@ def scan_sheet(image_path, save_annotated=True, clf=None, model_type="super"):
             )
             
             if feat is not None:
-                pred_label = clf.predict([feat])[0]
                 probs = clf.predict_proba([feat])[0]
+                pred_label = clf.classes_[np.argmax(probs)]
                 confidence = float(np.max(probs))
                 
                 # --- Topological Disambiguation for Confusing Pairs ---
@@ -558,8 +647,8 @@ def scan_sheet(image_path, save_annotated=True, clf=None, model_type="super"):
                             max_gap = np.max(diffs) - 1 if len(diffs) > 0 else 0
                         has_legs = (max_gap >= 9 and bot_cols[0] <= 5 and bot_cols[-1] >= bw_c - 6)
                         
-                        # Flip to R only if two clear legs exist, or if bot_ratio <= 0.52 and model is not confident in B
-                        if has_legs or (bot_ratio <= 0.52 and prob_b < 0.90):
+                        # Flip to R only if two clear legs exist, or if bot_ratio <= 0.50 and model has non-trivial R probability
+                        if (has_legs and prob_r > 0.10) or (bot_ratio <= 0.50 and prob_b < 0.75 and prob_r > 0.20):
                             pred_label = "R"
                             confidence = max(prob_r, 0.85)
 
@@ -570,9 +659,10 @@ def scan_sheet(image_path, save_annotated=True, clf=None, model_type="super"):
                     bot_cols = np.where(np.any(bot_strip > 0, axis=0))[0]
                     reach = (bot_cols[-1] / max(bw_c - 1, 1)) if len(bot_cols) > 0 else 0
                     bot_w = len(bot_cols)
+                    prob_e = float(probs[classes_list.index("E")])
                     prob_f = float(probs[classes_list.index("F")])
-                    # If predicted as E, but bottom has NO stroke extending to the right, it is an F!
-                    if reach < 0.40 and bot_w < 0.25 * bw_c:
+                    # If predicted as E, only flip to F if F probability is significant AND bottom truly has NO horizontal stroke
+                    if prob_f > 0.35 and prob_f >= prob_e - 0.15 and reach < 0.25 and bot_w < 0.20 * bw_c:
                         pred_label = "F"
                         confidence = max(prob_f, 0.88)
                 elif pred_label == "F" and char_crop is not None and "E" in classes_list:
@@ -582,42 +672,38 @@ def scan_sheet(image_path, save_annotated=True, clf=None, model_type="super"):
                     reach = (bot_cols[-1] / max(bw_c - 1, 1)) if len(bot_cols) > 0 else 0
                     bot_w = len(bot_cols)
                     prob_e = float(probs[classes_list.index("E")])
-                    # Only flip F to E if bottom stroke clearly extends across the baseline
-                    if reach >= 0.70 and bot_w >= 0.50 * bw_c and prob_e > 0.05:
+                    prob_p = float(probs[classes_list.index("P")]) if "P" in classes_list else 0.0
+                    # Only flip F to E if bottom stroke clearly extends across baseline and it's not a P
+                    if reach >= 0.55 and bot_w >= 0.35 * bw_c and prob_e > 0.10 and prob_e >= prob_p:
                         pred_label = "E"
                         confidence = max(prob_e, 0.88)
 
                 # 3. C vs O & C vs D:
                 elif pred_label == "C" and char_crop is not None:
                     bh_c, bw_c = char_crop.shape[:2]
-                    # Check D first: if left spine is a straight vertical line, it is D
+                    prob_c = float(probs[classes_list.index("C")])
+                    # Check D first: if left spine is a straight vertical line and D prob is dominant
                     if "D" in classes_list and bh_c >= 18:
                         left_col = char_crop[:, :max(int(bw_c * 0.25), 2)]
                         left_h = np.sum(np.any(left_col > 0, axis=1))
                         prob_d = float(probs[classes_list.index("D")])
-                        if left_h >= 0.85 * bh_c and prob_d > 0.01:
+                        if left_h >= 0.85 * bh_c and prob_d > prob_c:
                             pred_label = "D"
                             confidence = max(prob_d, 0.85)
-                    # If not D, check if right side has pixels closing the loop (O)
+                    # If still C, check if right side has pixels closing the loop (O)
                     if pred_label == "C" and "O" in classes_list:
-                        k_close_c = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+                        k_close_c = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 4))
                         closed_c = cv2.morphologyEx(char_crop, cv2.MORPH_CLOSE, k_close_c)
                         contours_c, hierarchy_c = cv2.findContours(closed_c, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
                         holes_c = sum(1 for h in hierarchy_c[0] if h[3] != -1) if hierarchy_c is not None else 0
-                        prob_c = float(probs[classes_list.index("C")])
                         prob_o = float(probs[classes_list.index("O")])
-                        if holes_c >= 1 and bw_c >= 15:
+                        # Only flip to O if closed morphology produces an enclosed hole AND O probability is non-trivial
+                        if holes_c >= 1 and bw_c >= 15 and prob_o > 0.25 and (prob_o >= prob_c - 0.10):
+                            pred_label = "O"
+                            confidence = max(prob_o, 0.85)
+                        elif abs(prob_c - prob_o) <= 0.05 and bw_c >= 18 and prob_o > prob_c:
                             pred_label = "O"
                             confidence = 0.85
-                        elif abs(prob_c - prob_o) <= 0.05 and bw_c >= 18:
-                            pred_label = "O"
-                            confidence = 0.85
-                        else:
-                            right_strip = char_crop[:, int(bw_c * 0.75):]
-                            right_h = np.sum(np.any(right_strip > 0, axis=1))
-                            if right_h >= 0.45 * bh_c and prob_o > 0.05:
-                                pred_label = "O"
-                                confidence = max(prob_o, 0.85)
 
                 # 4. T vs I: Serif I with wide bottom bar
                 elif pred_label == "T" and char_crop is not None and "I" in classes_list:

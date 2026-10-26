@@ -14,6 +14,11 @@ openpyxl>=3.1.0
 matplotlib>=3.8.0
 tqdm>=4.65.0
 
-# (Optional) Deep Learning for EMNIST / CNN (Torch)
-# torch>=2.2.0
-# torchvision>=0.17.0
+# Deep Learning (PyTorch)
+# สำหรับเครื่องทั่วไป / CPU (รันได้ทันทีโดยอัตโนมัติ):
+#   pip install torch torchvision
+# สำหรับเครื่องที่มีการ์ดจอ NVIDIA (เปิดเร่งความเร็ว CUDA):
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
+torch>=2.2.0
+torchvision>=0.17.0
+

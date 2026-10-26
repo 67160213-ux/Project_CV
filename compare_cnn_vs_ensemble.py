@@ -168,7 +168,8 @@ def main():
     avg_conf_sup = float(np.mean(conf_sup_list))
 
     print("=" * 115)
-    print(f"{'รวม 9 แผ่น':<10} | {acc_ens:6.2f}% ({tot_ens}/{tot_cells})  | {acc_cnn:6.2f}% ({tot_cnn}/{tot_cells})  | {acc_sup:6.2f}% ({tot_sup}/{tot_cells})  | {diff_all:+.2f}% ({diff_chars:+d} ตัว)  | {avg_conf_sup:6.2f}%")
+    total_label = f"รวม {len(image_files)} แผ่น"
+    print(f"{total_label:<10} | {acc_ens:6.2f}% ({tot_ens}/{tot_cells})  | {acc_cnn:6.2f}% ({tot_cnn}/{tot_cells})  | {acc_sup:6.2f}% ({tot_sup}/{tot_cells})  | {diff_all:+.2f}% ({diff_chars:+d} ตัว)  | {avg_conf_sup:6.2f}%")
     print("=" * 115)
 
     print(f"\n[บทสรุปเชิงวิจัย]:")

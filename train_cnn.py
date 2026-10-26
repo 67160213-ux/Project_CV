@@ -135,10 +135,11 @@ class FocalLoss(nn.Module):
 # DATASET & AUGMENTATION (With Random Stroke Erasing)
 # =========================================================================
 class CharDataset(Dataset):
-    def __init__(self, images, labels, is_train=True):
+    def __init__(self, images, labels, is_train=True, physics_aug=False):
         self.images = images  # uint8 numpy array (N, 28, 28)
         self.labels = labels  # int64 numpy array (N,)
         self.is_train = is_train
+        self.physics_aug = physics_aug
         
     def __len__(self):
         return len(self.images)
@@ -227,6 +228,32 @@ class CharDataset(Dataset):
                 if lbl == CHAR2IDX.get("O", -1) and random.random() < 0.25:
                     gap_y = random.randint(10, 16)
                     img[gap_y : gap_y + 3, 16:24] = 0
+
+                # --- Approach 2: Physics-Based Stroke Augmentation ---
+                if self.physics_aug:
+                    # 1. Graphite Micro-Grain (Pencil friction against paper fibers)
+                    if random.random() < 0.40:
+                        fg_mask = (img > 30)
+                        if np.any(fg_mask):
+                            grain = np.random.uniform(0.60, 1.0, size=(28, 28))
+                            img = np.clip(img.astype(np.float32) * grain, 0, 255).astype(np.uint8)
+
+                    # 2. Uneven Stroke Pressure & Faint Gradient (Weak pencil baseline / stroke ends)
+                    if random.random() < 0.35:
+                        direction = random.choice(["bottom", "right", "top"])
+                        grad = np.ones((28, 28), dtype=np.float32)
+                        if direction == "bottom":
+                            grad[18:, :] = np.linspace(1.0, 0.45, 10)[:, None]
+                        elif direction == "right":
+                            grad[:, 18:] = np.linspace(1.0, 0.45, 10)[None, :]
+                        else:
+                            grad[:10, :] = np.linspace(0.45, 1.0, 10)[:, None]
+                        img = np.clip(img.astype(np.float32) * grad, 0, 255).astype(np.uint8)
+
+                    # 3. Ink Pooling / Bleed (Ballpoint / Gel Pen vertex simulation)
+                    if random.random() < 0.25:
+                        k_bleed = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2, 2))
+                        img = cv2.dilate(img, k_bleed, iterations=1)
                             
         # Normalize to [0.0, 1.0] and add channel dim -> (1, 28, 28)
         tensor_img = torch.from_numpy(img.astype(np.float32) / 255.0).unsqueeze(0)
@@ -387,12 +414,17 @@ def load_dataset_for_cnn(rebuild_cache=False, balance_classes=False, target_samp
     return X_all, y_all
 
 
-def train_cnn(fine_tune=True, max_epochs=None, rebuild_cache=False, balance_classes=False, target_samples=None, patience=6, lr=None, batch_size_arg=None):
+def train_cnn(fine_tune=True, max_epochs=None, rebuild_cache=False, balance_classes=False, 
+              target_samples=None, patience=6, lr=None, batch_size_arg=None, 
+              physics_aug=False, save_path=None):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     num_cpus = os.cpu_count() or 8
     torch.set_num_threads(num_cpus)
+    target_model_file = save_path if save_path is not None else MODEL_FILE
     print("=" * 60)
-    print(f"ฝึกสอน 2D CNN ด้วย Focal Loss & Hard-Negative Mining (อุปกรณ์ที่ใช้: {device}, Threads: {num_cpus})")
+    print(f"ฝึกสอน 2D CNN (อุปกรณ์ที่ใช้: {device}, Threads: {num_cpus})")
+    print(f"โหมด Physics Augmentation (Approach 2): {'เปิดใช้งาน (ON)' if physics_aug else 'ปิด (OFF)'}")
+    print(f"บันทึกผลลัพธ์โมเดลไปที่: {target_model_file}")
     if device.type == "cuda":
         print(f"GPU: {torch.cuda.get_device_name(0)}")
     print("=" * 60)
@@ -410,8 +442,8 @@ def train_cnn(fine_tune=True, max_epochs=None, rebuild_cache=False, balance_clas
     split = int(0.9 * len(indices))
     train_idx, val_idx = indices[:split], indices[split:]
     
-    train_dataset = CharDataset(X_all[train_idx], y_all[train_idx], is_train=True)
-    val_dataset = CharDataset(X_all[val_idx], y_all[val_idx], is_train=False)
+    train_dataset = CharDataset(X_all[train_idx], y_all[train_idx], is_train=True, physics_aug=physics_aug)
+    val_dataset = CharDataset(X_all[val_idx], y_all[val_idx], is_train=False, physics_aug=False)
     
     batch_size = batch_size_arg if batch_size_arg is not None else (128 if device.type == "cuda" else 64)
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, pin_memory=(device.type == "cuda"))
@@ -546,7 +578,7 @@ def train_cnn(fine_tune=True, max_epochs=None, rebuild_cache=False, balance_clas
                     "classes": CLASSES,
                     "val_acc": val_acc,
                     "epoch": epoch
-                }, MODEL_FILE)
+                }, target_model_file)
             else:
                 patience_counter += 1
                 
@@ -578,7 +610,7 @@ def train_cnn(fine_tune=True, max_epochs=None, rebuild_cache=False, balance_clas
             print(f"  -> จบ Epoch {epoch:03d} ({epoch_duration:.1f}s) | Train Acc: {train_acc:5.2f}% (Loss: {train_loss:.4f}) | Val Acc: {val_acc:5.2f}% (Loss: {val_loss:.4f}) | LR: {current_lr:.6f}")
             
             if is_new_best:
-                print(f"     🌟 [สถิติใหม่!] บันทึกโมเดลชุดที่ดีที่สุด (Val Acc = {val_acc:5.2f}%) -> {MODEL_FILE}")
+                print(f"     🌟 [สถิติใหม่!] บันทึกโมเดลชุดที่ดีที่สุด (Val Acc = {val_acc:5.2f}%) -> {target_model_file}")
             else:
                 print(f"     ⚠️  [Patience {patience_counter}/{PATIENCE}] Val Acc ({val_acc:5.2f}%) ต่ำกว่าสถิติสูงสุด ({best_val_acc:5.2f}% ที่ Epoch {best_epoch})")
                 
@@ -599,11 +631,11 @@ def train_cnn(fine_tune=True, max_epochs=None, rebuild_cache=False, balance_clas
     # MODEL PERFORMANCE REPORT: ประเมินโมเดลที่ดีที่สุดและสร้างรายงาน
     # =========================================================================
     print("\nกำลังโหลดโมเดลที่ดีที่สุดเพื่อสร้าง Performance Report...")
-    if not os.path.exists(MODEL_FILE):
+    if not os.path.exists(target_model_file):
         print("[เตือน] ยังไม่มีโมเดลถูกบันทึก")
         return
         
-    checkpoint = torch.load(MODEL_FILE, map_location=device)
+    checkpoint = torch.load(target_model_file, map_location=device)
     model.load_state_dict(checkpoint["model_state_dict"])
     model.eval()
     
@@ -689,8 +721,10 @@ python scratch/compare_cnn_vs_ensemble.py
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="Train 2D CNN with Hard-Negative Mining & Focal Loss (Approach 3)")
+    parser = argparse.ArgumentParser(description="Train 2D CNN with Physics-Based Augmentation & Focal Loss")
     parser.add_argument("--scratch", action="store_true", help="ฝึกสอนใหม่ทั้งหมดตั้งแต่แรก (ไม่ใช้ weights เดิม)")
+    parser.add_argument("--physics-aug", action="store_true", help="เปิดใช้งาน Physics-Based Augmentation (จำลองผงกราไฟต์ดินสอ, แรงกดไม่สม่ำเสมอ, น้ำหมึกซึม)")
+    parser.add_argument("--save-path", type=str, default=None, help="พาธสำหรับบันทึกโมเดล (Default: models/char_cnn.pth)")
     parser.add_argument("--epochs", type=int, default=None, help="จำนวน epoch สูงสุด (Default: รันไปเรื่อยๆ จน Early Stopping)")
     parser.add_argument("--patience", type=int, default=6, help="จำนวนรอบที่คะแนนไม่เพิ่มก่อน Early Stopping (Default: 6)")
     parser.add_argument("--lr", type=float, default=None, help="Learning Rate เริ่มต้น (เช่น 0.0003)")
@@ -707,5 +741,7 @@ if __name__ == "__main__":
         target_samples=args.target_samples,
         patience=args.patience,
         lr=args.lr,
-        batch_size_arg=args.batch_size
+        batch_size_arg=args.batch_size,
+        physics_aug=args.physics_aug,
+        save_path=args.save_path
     )
