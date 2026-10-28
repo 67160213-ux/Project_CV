@@ -126,6 +126,172 @@ def load_classifier(model_type="super"):
             raise FileNotFoundError(f"Classifier not found at {MODEL_PATH}. Run train_model.py first.")
         return joblib.load(MODEL_PATH)
 
+def _warp_curved_20_row_strips(img, row_cnts, gray_full, target_w=1000, target_h=1200):
+    """
+    Piecewise 2D mesh warp for hand-held sheets with 3D paper curvature or thumb-covered markers (e.g., test12).
+    Aligns all 20 row strips and 21 vertical column dividers into the canonical (target_w, target_h) grid.
+    """
+    n_slices = 20
+    s_grid = np.linspace(0.0, 1.0, n_slices + 1)
+    dst_x_grid = 5.0 + s_grid * 990.0
+
+    row_h_dst = 45.0
+    gap_h_dst = (target_h - 20.0 - 20.0 * row_h_dst) / 19.0
+
+    inv_full = 255 - gray_full
+    bw_full = cv2.adaptiveThreshold(inv_full, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 15, -2)
+    v_emp = cv2.morphologyEx(bw_full, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (1, 13)))
+
+    row_params = []
+    raw_c_r = []
+    s_internal = np.arange(1, 20, dtype=np.float32) / 20.0
+
+    for _, (_, _, _, _, c) in enumerate(row_cnts):
+        pts = c.reshape(-1, 2)
+        x_left = float(np.min(pts[:, 0]))
+        x_right = float(np.max(pts[:, 0]))
+        w_r = x_right - x_left
+
+        src_x_lin = x_left + s_grid * w_r
+        top_y_row = np.zeros_like(s_grid)
+        bot_y_row = np.zeros_like(s_grid)
+
+        for i, sx in enumerate(src_x_lin):
+            mask = np.abs(pts[:, 0] - sx) <= 18
+            if np.sum(mask) < 2:
+                mask = np.abs(pts[:, 0] - sx) <= 35
+            sub_y = pts[mask, 1]
+            top_y_row[i] = float(np.min(sub_y))
+            bot_y_row[i] = float(np.max(sub_y))
+
+        top_y_row = np.polyval(np.polyfit(s_grid, top_y_row, 2), s_grid)
+        bot_y_row = np.polyval(np.polyfit(s_grid, bot_y_row, 2), s_grid)
+
+        y_mid_min = max(0, int(np.min(top_y_row)) + 3)
+        y_mid_max = min(v_emp.shape[0], int(np.max(bot_y_row)) - 3)
+        v_strip_proj = np.sum(v_emp[y_mid_min:y_mid_max, :], axis=0).astype(np.float32)
+        v_strip_proj = np.convolve(v_strip_proj, [0.25, 0.5, 0.25], mode="same")
+
+        best_c = 0.0
+        best_score = -1.0
+        max_c = max(28.0, 28.0 * (img.shape[1] / 768.0))
+        for c_cand in np.linspace(-max_c, max_c, 113):
+            xk = np.round(x_left + w_r * s_internal + c_cand * 4.0 * s_internal * (1.0 - s_internal)).astype(int)
+            xk = np.clip(xk, 0, len(v_strip_proj) - 1)
+            sc = float(np.sum(v_strip_proj[xk]))
+            if sc > best_score:
+                best_score = sc
+                best_c = c_cand
+        raw_c_r.append(best_c)
+        row_params.append((x_left, w_r, top_y_row, bot_y_row))
+
+    r_indices = np.arange(20, dtype=np.float32)
+    x_left_arr = np.array([p[0] for p in row_params], dtype=np.float32)
+    x_right_arr = np.array([p[0] + p[1] for p in row_params], dtype=np.float32)
+    smooth_x_left = np.polyval(np.polyfit(r_indices, x_left_arr, 2), r_indices)
+    smooth_x_right = np.polyval(np.polyfit(r_indices, x_right_arr, 2), r_indices)
+    smooth_c_r = np.polyval(np.polyfit(r_indices, np.array(raw_c_r), 2), r_indices)
+
+    ctrl_dst_y = []
+    ctrl_src_x = []
+    ctrl_src_y = []
+
+    for r_idx, (_, _, top_y_row, bot_y_row) in enumerate(row_params):
+        x_left = float(smooth_x_left[r_idx])
+        w_r = float(smooth_x_right[r_idx] - x_left)
+        c_val = float(smooth_c_r[r_idx])
+        src_x_row = x_left + w_r * s_grid + c_val * 4.0 * s_grid * (1.0 - s_grid)
+
+        y_top_d = 10.0 + r_idx * (row_h_dst + gap_h_dst)
+        y_bot_d = y_top_d + row_h_dst
+
+        ctrl_dst_y.append(y_top_d)
+        ctrl_src_x.append(src_x_row)
+        ctrl_src_y.append(top_y_row)
+
+        ctrl_dst_y.append(y_bot_d)
+        ctrl_src_x.append(src_x_row)
+        ctrl_src_y.append(bot_y_row)
+
+    ctrl_dst_y = np.array(ctrl_dst_y, dtype=np.float32)
+    ctrl_src_x = np.array(ctrl_src_x, dtype=np.float32)
+    ctrl_src_y = np.array(ctrl_src_y, dtype=np.float32)
+
+    y_all = np.arange(target_h, dtype=np.float32)
+    x_all = np.arange(target_w, dtype=np.float32)
+
+    src_x_slices = np.zeros((target_h, n_slices + 1), dtype=np.float32)
+    src_y_slices = np.zeros((target_h, n_slices + 1), dtype=np.float32)
+    for i in range(n_slices + 1):
+        slope_top_y = (ctrl_src_y[1, i] - ctrl_src_y[0, i]) / row_h_dst
+        slope_bot_y = (ctrl_src_y[-1, i] - ctrl_src_y[-2, i]) / row_h_dst
+        src_x_slices[:, i] = np.interp(y_all, ctrl_dst_y, ctrl_src_x[:, i])
+        src_y_slices[:, i] = np.interp(y_all, ctrl_dst_y, ctrl_src_y[:, i])
+        for y in range(int(ctrl_dst_y[0])):
+            src_y_slices[y, i] = ctrl_src_y[0, i] - (ctrl_dst_y[0] - y) * slope_top_y
+        for y in range(int(ctrl_dst_y[-1]) + 1, target_h):
+            src_y_slices[y, i] = ctrl_src_y[-1, i] + (y - ctrl_dst_y[-1]) * slope_bot_y
+
+    map_x = np.zeros((target_h, target_w), dtype=np.float32)
+    map_y = np.zeros((target_h, target_w), dtype=np.float32)
+    for y in range(target_h):
+        slope_left_x = (src_x_slices[y, 1] - src_x_slices[y, 0]) / (dst_x_grid[1] - dst_x_grid[0])
+        slope_right_x = (src_x_slices[y, -1] - src_x_slices[y, -2]) / (dst_x_grid[-1] - dst_x_grid[-2])
+        row_mx = np.interp(x_all, dst_x_grid, src_x_slices[y, :])
+        for x in range(int(dst_x_grid[0])):
+            row_mx[x] = src_x_slices[y, 0] - (dst_x_grid[0] - x) * slope_left_x
+        for x in range(int(dst_x_grid[-1]) + 1, target_w):
+            row_mx[x] = src_x_slices[y, -1] + (x - dst_x_grid[-1]) * slope_right_x
+        map_x[y, :] = row_mx
+        map_y[y, :] = np.interp(x_all, dst_x_grid, src_y_slices[y, :])
+
+    return cv2.remap(img, map_x, map_y, interpolation=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
+
+
+def _find_curved_row_strips(gray, edges, orig_w, orig_h):
+    """
+    Finds the 20 individual horizontal row-strip contours of the 20x20 answer grid,
+    filtering out any attached finger/thumb edges or external markers.
+    """
+    # Attempt A: Canny edges with (3, 3) close (for 1477x1108 resolution)
+    closed_r = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3)))
+    cnts_r, _ = cv2.findContours(closed_r, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    row_cnts = []
+    for cr in cnts_r:
+        bx_r, by_r, bw_r, bh_r = cv2.boundingRect(cr)
+        if bw_r > orig_w * 0.45 and 18 <= bh_r <= 80 and by_r > orig_h * 0.25 and by_r + bh_r < orig_h * 0.95:
+            row_cnts.append((by_r, bx_r, bw_r, bh_r, cr))
+    if len(row_cnts) == 20:
+        row_cnts.sort(key=lambda x: x[0])
+        return row_cnts
+
+    # Attempt B: Scale-invariant adaptive threshold horizontal+vertical grid line masking (normalized to 768x1024)
+    g_norm = cv2.resize(gray, (768, 1024), interpolation=cv2.INTER_AREA)
+    bw = cv2.adaptiveThreshold(255 - g_norm, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 15, -4)
+    hl = cv2.morphologyEx(bw, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (15, 1)))
+    vl = cv2.morphologyEx(bw, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (1, 10)))
+    hl_mask = cv2.dilate(hl, cv2.getStructuringElement(cv2.MORPH_RECT, (5, 25)))
+    vl_masked = cv2.bitwise_and(vl, hl_mask)
+    grid = cv2.morphologyEx(cv2.bitwise_or(hl, vl_masked), cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_RECT, (3, 1)))
+    cnts_b, _ = cv2.findContours(grid, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    row_cnts_b = []
+    sx_scale = orig_w / 768.0
+    sy_scale = orig_h / 1024.0
+    for cr in cnts_b:
+        bx_r, by_r, bw_r, bh_r = cv2.boundingRect(cr)
+        if bw_r > 768 * 0.40 and 12 <= bh_r <= 65 and by_r > 1024 * 0.25 and by_r + bh_r < 1024 * 0.95:
+            cr_scaled = cr.astype(np.float32)
+            cr_scaled[:, 0, 0] *= sx_scale
+            cr_scaled[:, 0, 1] *= sy_scale
+            cr_int = np.round(cr_scaled).astype(np.int32)
+            bx_s, by_s, bw_s, bh_s = cv2.boundingRect(cr_int)
+            row_cnts_b.append((by_s, bx_s, bw_s, bh_s, cr_int))
+    if len(row_cnts_b) == 20:
+        row_cnts_b.sort(key=lambda x: x[0])
+        return row_cnts_b
+    return []
+
+
 def preprocess_and_warp(image_path, target_w=1000, target_h=1200):
     """
     Robust table alignment and perspective warp:
@@ -316,6 +482,12 @@ def preprocess_and_warp(image_path, target_w=1000, target_h=1200):
                         new_y_bl = float(by1 + h_peaks[-1])
                     rect[3][0] = float(first_v_bl)
                     rect[3][1] = float(new_y_bl)
+
+    # Check if hand-held 3D curvature / occluded bottom marker caused asymmetric top/bottom tilt (>25px) or small wide-angle handheld sheet
+    if orig_h < 2500 and (abs((rect[2][1] - rect[3][1]) - (rect[1][1] - rect[0][1])) > 25.0 or table_contour is None):
+        row_cnts = _find_curved_row_strips(gray, edges, orig_w, orig_h)
+        if len(row_cnts) == 20:
+            return _warp_curved_20_row_strips(img, row_cnts, gray, target_w=target_w, target_h=target_h)
 
     dst = np.array([
         [0, 0],
